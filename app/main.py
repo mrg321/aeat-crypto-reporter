@@ -1,0 +1,67 @@
+
+# core.py
+# -*- coding: utf-8 -*-
+
+import os
+import sys
+from datetime import datetime
+
+# Importamos los módulos (asegúrate de que los nombres de archivo coincidan)
+import EURconverter_pro as converter
+import FIFO_calculator as calculator
+import Fiscal_Reporter_ES as reporter
+from Core import ARCHIVO_ORIGINAL, ARCHIVO_CONVERTIDO, ARCHIVO_FIFO, INFORME_FISCAL
+
+def orchestrator():
+    # --- CONFIGURACIÓN DE RUTAS ---
+    archivo_original = ARCHIVO_ORIGINAL
+    archivo_convertido = ARCHIVO_CONVERTIDO
+    archivo_fifo = ARCHIVO_FIFO
+
+    # Definir año fiscal (por defecto el año pasado)
+    anio_actual = datetime.now().year
+    anio_a_reportar = anio_actual - 1
+
+    print("🚀 Iniciando Pipeline Contable de Criptoactivos...")
+
+    try:
+        # --- PASO 1: CONVERSIÓN (SALTAR SI YA EXISTE) ---
+        print("\n--- PASO 1: Conversión de Precios y Normalización ---")
+        
+        if os.path.exists(archivo_convertido):
+            print(f"⏩ El archivo '{archivo_convertido}' ya existe. Saltando conversión para ahorrar tiempo.")
+        else:
+            if not os.path.exists(archivo_original):
+                print(f"❌ Error crítico: No se encuentra el origen '{archivo_original}'.")
+                return
+            
+            print(f"⏳ Procesando conversión (esto puede tardar por las llamadas a API)...")
+            converter.procesar_ledger(archivo_original, archivo_convertido)
+            print(f"✅ Conversión finalizada y guardada en '{archivo_convertido}'.")
+        
+        # --- PASO 2: CÁLCULO FIFO ---
+        # Este paso suele ser rápido, pero si quieres saltarlo también, 
+        # podrías aplicar la misma lógica de os.path.exists(archivo_fifo)
+        print("\n--- PASO 2: Cálculo de Ganancias FIFO ---")
+        calculator.calcular_fifo(archivo_convertido, archivo_fifo)
+        
+        # --- PASO 3: INFORME FISCAL ---
+        print(f"\n--- PASO 3: Generación de Informe Fiscal {anio_a_reportar} ---")
+        # El reporter necesita el CSV del FIFO y el archivo .pkl generado en el Paso 2
+        reporter.generar_informe_fiscal(archivo_fifo, anio_fiscal=anio_a_reportar, informe_fiscal = INFORME_FISCAL)
+
+        print("\n" + "="*40)
+        print("✅ PROCESO FINALIZADO CON ÉXITO")
+        print(f"📊 Informe listo: {INFORME_FISCAL}_{anio_a_reportar}.xlsx")
+        print("="*40)
+
+    except Exception as e:
+        print(f"\n❌ SE HA PRODUCIDO UN ERROR CRÍTICO:")
+        print(f"Tipo: {type(e).__name__}")
+        print(f"Detalle: {str(e)}")
+        # Opcional: print de la línea exacta del error
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    orchestrator()

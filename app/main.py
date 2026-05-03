@@ -70,5 +70,5 @@ if __name__ == "__main__":
     csv_files = sorted(input_dir.glob('*.csv'))
 
     for file_path in csv_files:
-        print(file_path)
+        print(f"Processing inputfile: {file_path}")
         orchestrator(archivo_entrada=str(file_path))

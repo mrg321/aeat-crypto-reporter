@@ -21,9 +21,9 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     df_year = df[df['time'].dt.year == anio_fiscal].copy()
     
     # --- 1. TRADING (Transmisión/Permuta) ---
-    # Solo ventas/trades con ganancia/pérdida calculada y sin incluir EUR (que se consideran solo para valoración)
+    # Solo ventas/trades con ganancia/pérdida calculada
     trading = df_year[
-        (df_year['asset'] != 'EUR') & 
+        #(df_year['asset'] != 'EUR') & 
         (df_year['type'].isin(['trade', 'spend'])) & 
         (df_year['amount'] < 0)
     ].copy()

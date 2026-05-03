@@ -268,12 +268,13 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                     base_transmision = abs(fila['amount_eur'])
                     
                     # La ganancia se calcula sobre el neto recibido (EUR - fee_eur)
-                    valor_transmision_neto = base_transmision - fee_eur
-                    #valor_transmision_neto = base_transmision
+                    #valor_transmision_neto = base_transmision - fee_eur
+                    valor_transmision_neto = base_transmision
                     cantidad_a_procesar = cantidad_total_a_salir
                     precio_venta_unitario = valor_transmision_neto / cantidad_a_procesar
                     
                     ganancia_total_fila = 0.0
+                    lotes_consumidos = []
                     
                     while cantidad_a_procesar > TOLERANCIA_DUST:
                         if not colas[asset]:
@@ -284,15 +285,26 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                         
                         lote = colas[asset][0]
                         cant_lote = round(lote['cantidad'], PRECISION_CRIPTOS)
+                        coste_unitario_lote = lote['coste_unitario']
 
                         if cant_lote <= cantidad_a_procesar:
                             # Consumimos lote completo
-                            ganancia_total_fila += cant_lote * (precio_venta_unitario - lote['coste_unitario'])
+                            ganancia_total_fila += cant_lote * (precio_venta_unitario - coste_unitario_lote)
+                            lotes_consumidos.append({
+                                'cantidad': cant_lote,
+                                'coste_unitario': coste_unitario_lote,
+                                'valor_original': round(cant_lote * coste_unitario_lote, 4)
+                            })
                             cantidad_a_procesar = round(cantidad_a_procesar - cant_lote, PRECISION_CRIPTOS)
                             colas[asset].popleft()
                         else:
                             # Consumimos parte del lote
-                            ganancia_total_fila += cantidad_a_procesar * (precio_venta_unitario - lote['coste_unitario'])
+                            ganancia_total_fila += cantidad_a_procesar * (precio_venta_unitario - coste_unitario_lote)
+                            lotes_consumidos.append({
+                                'cantidad': cantidad_a_procesar,
+                                'coste_unitario': coste_unitario_lote,
+                                'valor_original': round(cantidad_a_procesar * coste_unitario_lote, 4)
+                            })
                             lote['cantidad'] = round(lote['cantidad'] - cantidad_a_procesar, PRECISION_CRIPTOS)
                             cantidad_a_procesar = 0
                 
@@ -300,7 +312,14 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                 df.at[idx, 'ganancia_fifo'] = round(ganancia_total_fila, 4)
                 
                 if not df.at[idx, 'FIFO_calculation']:  # If no error was set
-                    df.at[idx, 'FIFO_calculation'] = f'FIFO sale: sold {cantidad_total_a_salir:.6f} {asset} at unit price {precio_venta_unitario:.4f} EUR, gain calculated as sum of (sale_price - cost_price) * quantity for consumed lots'
+                    detalle_lotes = ', '.join(
+                        f"{l['cantidad']:.6f}@{l['coste_unitario']:.4f}EUR (valor original {l['valor_original']:.4f}EUR)"
+                        for l in lotes_consumidos
+                    )
+                    df.at[idx, 'FIFO_calculation'] = (
+                        f'FIFO sale: sold {cantidad_total_a_salir:.6f} {asset} at unit price {precio_venta_unitario:.4f} EUR; '
+                        f'gain=sum((sale_price-cost_price)*qty); consumed lots: {detalle_lotes}'
+                    )
                 
                 if abs(ganancia_total_fila) > 0:
                     print(f"📤 [{fila['time']}] VENTA {asset} | Ganancia: {ganancia_total_fila:+.2f}€ | Ref: {refid}")

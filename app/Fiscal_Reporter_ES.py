@@ -1,5 +1,5 @@
 
-# core.py
+# Fiscal_Reporter_ES.py
 # -*- coding: utf-8 -*-
 
 import os
@@ -23,13 +23,21 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal= INFOR
     df_year = df[df['time'].dt.year == anio_fiscal].copy()
     
     # --- 1. TRADING (Transmisión/Permuta) ---
-    # Solo ventas/trades con ganancia/pérdida calculada
-    trading = df_year[(df_year['type'].isin(['trade', 'spend'])) & (df_year['amount'] < 0)].copy()
+    # Solo ventas/trades con ganancia/pérdida calculada y sin incluir EUR (que se consideran solo para valoración)
+    trading = df_year[
+        (df_year['asset'] != 'EUR') & 
+        (df_year['type'].isin(['trade', 'spend'])) & 
+        (df_year['amount'] < 0)
+    ].copy()
+    
     reporte_trading = trading[['time', 'asset', 'amount', 'amount_eur', 'fee_eur', 'ganancia_fifo', 'refid']]
     
     # --- 2. AIRDROPS / REGALOS (Sin transmisión) ---
     # Ganancias que no derivan de una venta previa
-    airdrops = df_year[df_year['type'].isin(['receive', 'airdrop', 'bonus'])].copy()
+    airdrops = df_year[
+        (df_year['asset'] != 'EUR') & 
+        (df_year['type'].isin(['airdrop', 'bonus']))
+    ].copy()
     reporte_airdrops = airdrops[['time', 'asset', 'amount', 'amount_eur', 'refid']]
 
     # --- 3. RENDIMIENTOS CAPITAL MOBILIARIO (Staking, Intereses) ---
@@ -58,16 +66,61 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal= INFOR
         print("⚠️ No se encontró el archivo de inventarios. Ejecuta FIFO_calculator actualizado.")
         balance_inicio = balance_cierre = pd.DataFrame()
 
+    # --- RESÚMENES POR ACTIVO ---
+    # Trading por activo
+    if not trading.empty:
+        resumen_trading = trading.groupby('asset').agg({
+            'amount': 'sum',
+            'amount_eur': 'sum',
+            'fee_eur': 'sum',
+            'ganancia_fifo': 'sum'
+        }).round(2).reset_index()
+        resumen_trading.columns = ['Asset', 'Cantidad_Total', 'Valor_EUR', 'Comisiones_EUR', 'Ganancia_FIFO']
+    else:
+        resumen_trading = pd.DataFrame()
+    
+    # Airdrops por activo
+    if not airdrops.empty:
+        resumen_airdrops = airdrops.groupby('asset').agg({
+            'amount': 'sum',
+            'amount_eur': 'sum'
+        }).round(2).reset_index()
+        resumen_airdrops.columns = ['Asset', 'Cantidad_Total', 'Valor_EUR']
+    else:
+        resumen_airdrops = pd.DataFrame()
+    
+    # Rendimientos por activo
+    if not rendimientos.empty:
+        resumen_rendimientos = rendimientos.groupby('asset').agg({
+            'amount': 'sum',
+            'amount_eur': 'sum'
+        }).round(2).reset_index()
+        resumen_rendimientos.columns = ['Asset', 'Cantidad_Total', 'Valor_EUR']
+    else:
+        resumen_rendimientos = pd.DataFrame()
+
     # --- ESCRITURA A EXCEL ---
     ruta_actual = os.getcwd()
     nombre_excel = f"{ruta_actual}/{informe_fiscal}_{anio_fiscal}.xlsx"
     with pd.ExcelWriter(nombre_excel, engine='xlsxwriter') as writer:
-        reporte_trading.to_excel(writer, sheet_name='1. Trading', index=False)
-        reporte_airdrops.to_excel(writer, sheet_name='2. Airdrops_Premios', index=False)
-        reporte_rendimientos.to_excel(writer, sheet_name='3. Rendimientos_Capital', index=False)
+        # Resúmenes por activo
+        resumen_trading.to_excel(writer, sheet_name='1a. Trading_Resumen', index=False)
+        reporte_trading.to_excel(writer, sheet_name='1b. Trading_Detalle', index=False)
+        
+        resumen_airdrops.to_excel(writer, sheet_name='2a. Airdrops_Resumen', index=False)
+        reporte_airdrops.to_excel(writer, sheet_name='2b. Airdrops_Detalle', index=False)
+        
+        resumen_rendimientos.to_excel(writer, sheet_name='3a. Rendimientos_Resumen', index=False)
+        reporte_rendimientos.to_excel(writer, sheet_name='3b. Rendimientos_Detalle', index=False)
+        
         balance_inicio.to_excel(writer, sheet_name='4a. Balance_1-Ene', index=False)
         balance_cierre.to_excel(writer, sheet_name='4b. Balance_31-Dic', index=False)
-        
+
+        # --- NUEVA PESTAÑA: DATOS DE ENTRADA ---
+        # Guardamos el histórico completo que se usó para este año, 
+        # incluyendo las filas de EUR para que la trazabilidad sea total.
+        df_year.to_excel(writer, sheet_name='5. Datos_Entrada', index=False)
+
         # Formatos básicos
         workbook = writer.book
         fmt_money = workbook.add_format({'num_format': '#,##0.00€'})

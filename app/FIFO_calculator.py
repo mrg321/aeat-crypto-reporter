@@ -1,5 +1,5 @@
 
-# core.py
+# FIFO_calculator.py
 # -*- coding: utf-8 -*-
 
 import os

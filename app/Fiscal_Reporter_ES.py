@@ -28,7 +28,7 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
         (df_year['amount'] < 0)
     ].copy()
     
-    reporte_trading = trading[['time', 'asset', 'amount', 'amount_eur', 'fee_eur', 'ganancia_fifo', 'refid']]
+    reporte_trading = trading[['time', 'asset', 'amount', 'amount_eur', 'fee_eur', 'ganancia_fifo', 'Valor de transmision', 'Valor de adquisicion', 'refid']]
     
     # --- 2. AIRDROPS / REGALOS (Sin transmisión) ---
     # Ganancias que no derivan de una venta previa
@@ -36,12 +36,12 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
         (df_year['asset'] != 'EUR') & 
         (df_year['type'].isin(['airdrop', 'bonus']))
     ].copy()
-    reporte_airdrops = airdrops[['time', 'asset', 'amount', 'amount_eur', 'refid']]
+    reporte_airdrops = airdrops[['time', 'asset', 'amount', 'amount_eur', 'fee', 'fee_eur', 'refid']]
 
     # --- 3. RENDIMIENTOS CAPITAL MOBILIARIO (Staking, Intereses) ---
     # Rentas del ahorro
     rendimientos = df_year[df_year['type'].isin(['staking', 'earn', 'dividend', 'lending'])].copy()
-    reporte_rendimientos = rendimientos[['time', 'asset', 'amount', 'amount_eur', 'type', 'refid']]
+    reporte_rendimientos = rendimientos[['time', 'asset', 'amount', 'amount_eur', 'fee', 'fee_eur', 'type', 'refid']]
 
     # --- 4. BALANCES (1 Ene y 31 Dic) ---
     try:
@@ -71,9 +71,11 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
             'amount': 'sum',
             'amount_eur': 'sum',
             'fee_eur': 'sum',
-            'ganancia_fifo': 'sum'
+            'ganancia_fifo': 'sum',
+            'Valor de transmision': 'sum',
+            'Valor de adquisicion': 'sum'
         }).round(2).reset_index()
-        resumen_trading.columns = ['Asset', 'Cantidad_Total', 'Valor_EUR', 'Comisiones_EUR', 'Ganancia_FIFO']
+        resumen_trading.columns = ['Asset', 'Cantidad_Total', 'Valor_EUR', 'Comisiones_EUR', 'Ganancia_FIFO', 'Valor_Transmision', 'Valor_Adquisicion']
     else:
         resumen_trading = pd.DataFrame()
     
@@ -81,9 +83,11 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     if not airdrops.empty:
         resumen_airdrops = airdrops.groupby('asset').agg({
             'amount': 'sum',
-            'amount_eur': 'sum'
+            'amount_eur': 'sum',
+            'fee': 'sum',
+            'fee_eur': 'sum'
         }).round(2).reset_index()
-        resumen_airdrops.columns = ['Asset', 'Cantidad_Total', 'Valor_EUR']
+        resumen_airdrops.columns = ['Asset', 'Cantidad_Total', 'Valor_EUR', 'Fee', 'Fee_EUR']
     else:
         resumen_airdrops = pd.DataFrame()
     
@@ -91,9 +95,11 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     if not rendimientos.empty:
         resumen_rendimientos = rendimientos.groupby('asset').agg({
             'amount': 'sum',
-            'amount_eur': 'sum'
+            'amount_eur': 'sum',
+            'fee': 'sum',
+            'fee_eur': 'sum'
         }).round(2).reset_index()
-        resumen_rendimientos.columns = ['Asset', 'Cantidad_Total', 'Valor_EUR']
+        resumen_rendimientos.columns = ['Asset', 'Cantidad_Total', 'Valor_EUR', 'Fee', 'Fee_EUR']
     else:
         resumen_rendimientos = pd.DataFrame()
 

@@ -113,6 +113,8 @@ def calcular_fifo(archivo_entrada, archivo_salida):
     # Inicializamos la columna explícitamente como float
     df['ganancia_fifo'] = 0.0
     df['FIFO_calculation'] = ''
+    df['Valor de transmision'] = 0.0
+    df['Valor de adquisicion'] = 0.0
     
     # 2. Agrupamos para identificar patas FIAT (ventas directas a EUR)
     grupos = df.groupby('refid', sort=False)
@@ -320,6 +322,8 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                         f'FIFO sale: sold {cantidad_total_a_salir:.6f} {asset} at unit price {precio_venta_unitario:.4f} EUR; '
                         f'gain=sum((sale_price-cost_price)*qty); consumed lots: {detalle_lotes}'
                     )
+                    df.at[idx, 'Valor de transmision'] = round(valor_transmision_neto, 4)
+                    df.at[idx, 'Valor de adquisicion'] = round(sum(l['valor_original'] for l in lotes_consumidos), 4)
                 
                 if abs(ganancia_total_fila) > 0:
                     print(f"📤 [{fila['time']}] VENTA {asset} | Ganancia: {ganancia_total_fila:+.2f}€ | Ref: {refid}")

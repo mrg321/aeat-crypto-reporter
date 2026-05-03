@@ -2,15 +2,13 @@
 # FIFO_calculator.py
 # -*- coding: utf-8 -*-
 
-import os
-
 import pandas as pd
 import pickle
 
 from collections import deque
 
 # Configuración de precisión
-from Core import PRECISION_CRIPTOS, TOLERANCIA_DUST, INVENTARIOS_FIFO, ARCHIVO_FIFO, ARCHIVO_CONVERTIDO
+from Core import PRECISION_CRIPTOS, TOLERANCIA_DUST, ARCHIVO_ENTRADA
 
 def normalizar_activo(asset):
     if pd.isna(asset): return asset
@@ -333,7 +331,7 @@ def calcular_fifo(archivo_entrada, archivo_salida):
 
     # --- EXPORTACIÓN DEL FICHERO PKL ---
     #path_pkl = os.path.join(os.path.dirname(archivo_salida), 'inventarios_fifo.pkl')
-    path_pkl = INVENTARIOS_FIFO
+    path_pkl = ARCHIVO_ENTRADA.replace('inputs', 'temp').replace('.csv', '_inventarios_fifo.pkl')
     with open(path_pkl, 'wb') as f:
         pickle.dump(inventarios_anuales, f)
     
@@ -344,4 +342,4 @@ def calcular_fifo(archivo_entrada, archivo_salida):
     print(f"\n✅ FIFO completado con éxito. Archivo: {archivo_salida}")
 
 if __name__ == "__main__":
-    calcular_fifo(ARCHIVO_CONVERTIDO, ARCHIVO_FIFO)
+    calcular_fifo(ARCHIVO_ENTRADA.replace('inputs', 'temp').replace('.csv', '_converted_pro.csv'), ARCHIVO_ENTRADA.replace('inputs', 'temp').replace('.csv', '_FIFO.csv'))

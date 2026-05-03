@@ -8,6 +8,7 @@ from datetime import datetime
 import time
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from Core import ARCHIVO_ENTRADA
 
 class KrakenConverter:
     def __init__(self):
@@ -217,4 +218,4 @@ def procesar_ledger(archivo_entrada, archivo_salida):
     print(f"\n✨ Proceso finalizado. Archivo guardado: {archivo_salida}")
 
 if __name__ == "__main__":
-    procesar_ledger('data/inputs/MRGLedgers_2021-2026.csv', 'data/temp/MRGLedgers_2021-2026_converted_pro.csv')
+    procesar_ledger(ARCHIVO_ENTRADA, ARCHIVO_ENTRADA.replace('inputs', 'temp').replace('.csv', '_converted_pro.csv'))

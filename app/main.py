@@ -3,20 +3,22 @@
 # -*- coding: utf-8 -*-
 
 import os
-import sys
 from datetime import datetime
 
 # Importamos los módulos (asegúrate de que los nombres de archivo coincidan)
 import EURconverter_pro as converter
 import FIFO_calculator as calculator
 import Fiscal_Reporter_ES as reporter
-from Core import ARCHIVO_ORIGINAL, ARCHIVO_CONVERTIDO, ARCHIVO_FIFO, INFORME_FISCAL
+from Core import ARCHIVO_ENTRADA
 
-def orchestrator():
+from pathlib import Path
+
+def orchestrator(archivo_entrada=ARCHIVO_ENTRADA):
     # --- CONFIGURACIÓN DE RUTAS ---
-    archivo_original = ARCHIVO_ORIGINAL
-    archivo_convertido = ARCHIVO_CONVERTIDO
-    archivo_fifo = ARCHIVO_FIFO
+    archivo_original = archivo_entrada
+    archivo_convertido = archivo_entrada.replace('inputs', 'temp').replace('.csv', '_converted_pro.csv')
+    archivo_fifo = archivo_entrada.replace('inputs', 'temp').replace('.csv', '_FIFO.csv')
+    informe_fiscal = archivo_entrada.replace('inputs', 'outputs').replace('.csv', '_Informe_Fiscal')
 
     # Definir año fiscal (por defecto el año pasado)
     anio_actual = datetime.now().year
@@ -48,11 +50,11 @@ def orchestrator():
         # --- PASO 3: INFORME FISCAL ---
         print(f"\n--- PASO 3: Generación de Informe Fiscal {anio_a_reportar} ---")
         # El reporter necesita el CSV del FIFO y el archivo .pkl generado en el Paso 2
-        reporter.generar_informe_fiscal(archivo_fifo, anio_fiscal=anio_a_reportar, informe_fiscal = INFORME_FISCAL)
+        reporter.generar_informe_fiscal(archivo_fifo, anio_fiscal=anio_a_reportar, informe_fiscal=informe_fiscal)
 
         print("\n" + "="*40)
         print("✅ PROCESO FINALIZADO CON ÉXITO")
-        print(f"📊 Informe listo: {INFORME_FISCAL}_{anio_a_reportar}.xlsx")
+        print(f"📊 Informe listo: {informe_fiscal}_{anio_a_reportar}.xlsx")
         print("="*40)
 
     except Exception as e:
@@ -64,4 +66,9 @@ def orchestrator():
         traceback.print_exc()
 
 if __name__ == "__main__":
-    orchestrator()
+    input_dir = Path('data/inputs')
+    csv_files = sorted(input_dir.glob('*.csv'))
+
+    for file_path in csv_files:
+        print(file_path)
+        orchestrator(archivo_entrada=str(file_path))

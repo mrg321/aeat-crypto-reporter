@@ -2,15 +2,13 @@
 # Fiscal_Reporter_ES.py
 # -*- coding: utf-8 -*-
 
-import os
-
 import pandas as pd
 import pickle
 from datetime import datetime
 
-from Core import ARCHIVO_FIFO, INFORME_FISCAL, INVENTARIOS_FIFO
+from Core import ARCHIVO_ENTRADA
 
-def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal= INFORME_FISCAL):
+def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     if anio_fiscal is None:
         anio_fiscal = datetime.now().year - 1
     
@@ -47,7 +45,7 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal= INFOR
 
     # --- 4. BALANCES (1 Ene y 31 Dic) ---
     try:
-        with open(INVENTARIOS_FIFO, 'rb') as f:
+        with open(ARCHIVO_ENTRADA.replace('inputs', 'temp').replace('.csv', '_inventarios_fifo.pkl'), 'rb') as f:
             inventarios = pickle.load(f)
             
         def procesar_inventario(anio):
@@ -100,8 +98,9 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal= INFOR
         resumen_rendimientos = pd.DataFrame()
 
     # --- ESCRITURA A EXCEL ---
-    ruta_actual = os.getcwd()
-    nombre_excel = f"{ruta_actual}/{informe_fiscal}_{anio_fiscal}.xlsx"
+    #ruta_actual = os.getcwd()
+    #nombre_excel = f"{ruta_actual}/{informe_fiscal}_{anio_fiscal}.xlsx"
+    nombre_excel = f"{informe_fiscal}_{anio_fiscal}.xlsx"
     with pd.ExcelWriter(nombre_excel, engine='xlsxwriter') as writer:
         # Resúmenes por activo
         resumen_trading.to_excel(writer, sheet_name='1a. Trading_Resumen', index=False)
@@ -131,4 +130,6 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal= INFOR
 
 if __name__ == "__main__":
     # Ajustar nombres de ficheros según tu configuración
-    generar_informe_fiscal(ARCHIVO_FIFO, anio_fiscal=2025)
+    generar_informe_fiscal(ARCHIVO_ENTRADA.replace('inputs', 'temp').replace('.csv', '_FIFO.csv'), 
+                           anio_fiscal=2025, 
+                           informe_fiscal=ARCHIVO_ENTRADA.replace('inputs', 'outputs').replace('.csv', '_Informe_Fiscal'))

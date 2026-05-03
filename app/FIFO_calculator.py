@@ -112,6 +112,7 @@ def calcular_fifo(archivo_entrada, archivo_salida):
 
     # Inicializamos la columna explícitamente como float
     df['ganancia_fifo'] = 0.0
+    df['FIFO_calculation'] = ''
     
     # 2. Agrupamos para identificar patas FIAT (ventas directas a EUR)
     grupos = df.groupby('refid', sort=False)
@@ -173,11 +174,13 @@ def calcular_fifo(archivo_entrada, archivo_salida):
             saldo_eur_tracker += (importe_operacion_eur - fee_eur)
             
             if amount == 0:
+                df.at[idx, 'FIFO_calculation'] = 'Zero amount: no operation performed'
                 continue
             
             if asset == 'EUR':
                 # Aquí no hay lógica FIFO, pero sí actualización de saldo de caja
                 # El trace de arriba ya lo captura, así que solo pasamos
+                #df.at[idx, 'FIFO_calculation'] = 'Fiat currency: no FIFO calculation performed'
                 pass
             elif asset == 'USD':
                 #print(f"💵 [{fila['time']}] USD DETECTADO | Ref: {refid} | Tipo: {tipo} | Subtipo: {subtipo} | Cantidad: {amount}")
@@ -203,6 +206,7 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                 # Si el neto es 0 y es un movimiento (ej. ETH -> ETH.S), no hacemos NADA.
                 # De esta forma el lote original en la cola no se toca.
                 df.at[idx, 'ganancia_fifo'] = 0.0
+                df.at[idx, 'FIFO_calculation'] = 'Neutral movement: no FIFO calculation performed, gain set to 0'
                 if amount < 0:
                     print(f"🔄 [{fila['time']}] BYPASS (Interno) | {asset} | Conservando coste original | Ref: {refid}")
                 continue
@@ -224,6 +228,8 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                     'fecha': fila['time']
                 })
                 #print(f"📥 [{fila['time']}] +{amount:.6f} {asset} | Coste: {coste_total:.2f}€ | Ref: {refid}")
+
+                df.at[idx, 'FIFO_calculation'] = f'Entry: added {cantidad_neta_entrada:.6f} {asset} to FIFO queue with unit cost {coste_unitario:.4f} EUR, no gain calculated'
 
                 if tipo in ['staking', 'earn', 'dividend']:
                     print(f"📥 [{fila['time']}] RECOMPENSA | {asset} | +{amount:.6f} | Ref: {refid}")
@@ -250,6 +256,7 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                             lote['cantidad'] = round(lote['cantidad'] - cantidad_a_procesar, PRECISION_CRIPTOS)
                             cantidad_a_procesar = 0
                     df.at[idx, 'ganancia_fifo'] = 0.0
+                    df.at[idx, 'FIFO_calculation'] = f'Neutral movement: adjusted inventory by removing {cantidad_total_a_salir:.6f} {asset} from FIFO queue, gain set to 0'
                     print(f"🔄 [{fila['time']}] MOVIMIENTO | {asset} | -{abs(amount):.6f} | Ganancia: 0.00€ | Ref: {refid}")
 
 
@@ -271,6 +278,7 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                     while cantidad_a_procesar > TOLERANCIA_DUST:
                         if not colas[asset]:
                             if cantidad_a_procesar > 1e-5: # Ignorar si es una cantidad minúscula
+                                df.at[idx, 'FIFO_calculation'] = f'Error: Insufficient balance in FIFO queue for {asset}, cannot process sale of {cantidad_a_procesar:.8f}'
                                 print(f"❌ ERROR: Sin saldo de {asset} para vender {cantidad_a_procesar:.8f} (Ref: {refid})")
                             break
                         
@@ -290,6 +298,9 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                 
                 # ASIGNACIÓN CRÍTICA: Guardamos el resultado en el DataFrame original
                 df.at[idx, 'ganancia_fifo'] = round(ganancia_total_fila, 4)
+                
+                if not df.at[idx, 'FIFO_calculation']:  # If no error was set
+                    df.at[idx, 'FIFO_calculation'] = f'FIFO sale: sold {cantidad_total_a_salir:.6f} {asset} at unit price {precio_venta_unitario:.4f} EUR, gain calculated as sum of (sale_price - cost_price) * quantity for consumed lots'
                 
                 if abs(ganancia_total_fila) > 0:
                     print(f"📤 [{fila['time']}] VENTA {asset} | Ganancia: {ganancia_total_fila:+.2f}€ | Ref: {refid}")

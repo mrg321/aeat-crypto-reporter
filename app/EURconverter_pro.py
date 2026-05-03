@@ -131,6 +131,7 @@ def procesar_ledger(archivo_entrada, archivo_salida):
     df['amount_eur'] = 0.0
     df['fee_eur'] = 0.0
     df['tasa'] = 0.0
+    df['EUR_conversion'] = ''
 
     print(f"🚀 Procesando {len(df)} filas...")
 
@@ -164,6 +165,7 @@ def procesar_ledger(archivo_entrada, archivo_salida):
                 df.at[indice, 'amount_eur'] = fila['amount']
                 df.at[indice, 'fee_eur'] = fila['fee']
                 df.at[indice, 'tasa'] = 1.0
+                df.at[indice, 'EUR_conversion'] = 'Direct EUR assignment'
                 continue
 
             # CASO 2: Operación compleja (3+ patas) -> Consultar API obligatoriamente
@@ -175,8 +177,10 @@ def procesar_ledger(archivo_entrada, archivo_salida):
                     df.at[indice, 'tasa'] = tasa_api
                     df.at[indice, 'amount_eur'] = fila['amount'] * tasa_api
                     df.at[indice, 'fee_eur'] = fila['fee'] * tasa_api
+                    df.at[indice, 'EUR_conversion'] = 'API conversion for multi-leg operation'
                     print(f"🌐 [API KRAKEN - MULTIPATA] {fila['time']} | {asset}: {tasa_api} EUR | Ref: {refid} | Type: {fila['type']}")
                 else:
+                    df.at[indice, 'EUR_conversion'] = 'Error: No rate available for multi-leg operation'
                     print(f"❌ [{fila['time']}] {asset}: Sin tasa disponible")
 
             # Caso 3: Es un activo cripto y hay sólo 2 patas (1 cripto + 1 EUR) -> Podemos usar el valor real de EUR para calcular la tasa
@@ -188,6 +192,7 @@ def procesar_ledger(archivo_entrada, archivo_salida):
                 df.at[indice, 'tasa'] = tasa_real
                 df.at[indice, 'amount_eur'] = fila['amount'] * tasa_real
                 df.at[indice, 'fee_eur'] = fila['fee'] * tasa_real
+                df.at[indice, 'EUR_conversion'] = 'Calculated from real EUR value in 2-leg operation'
                 
                 print(f"✅ [FIAT REAL - 2 PATAS] {fila['time']} | {asset}: Tasa calculada {tasa_real:.4f} EUR (Ref: {refid})")
             # Caso 4: Permutas o staking sin pata EUR -> Consultar API para obtener la tasa de ese día
@@ -201,8 +206,10 @@ def procesar_ledger(archivo_entrada, archivo_salida):
                     df.at[indice, 'tasa'] = tasa_api
                     df.at[indice, 'amount_eur'] = fila['amount'] * tasa_api
                     df.at[indice, 'fee_eur'] = fila['fee'] * tasa_api
+                    df.at[indice, 'EUR_conversion'] = 'API conversion for trade/staking'
                     print(f"🌐 [API KRAKEN - PERMUTAS/STAKING] {fila['time']} | {asset}: {tasa_api} EUR | Ref: {refid} | Type: {fila['type']}")
                 else:
+                    df.at[indice, 'EUR_conversion'] = 'Error: No rate available for trade/staking'
                     print(f"❌ [{fila['time']}] {asset}: Sin tasa disponible")
 
         # Pausa para evitar Rate Limit en las filas que sí usan API

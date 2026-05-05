@@ -295,7 +295,8 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                             lotes_consumidos.append({
                                 'cantidad': cant_lote,
                                 'coste_unitario': coste_unitario_lote,
-                                'valor_original': round(cant_lote * coste_unitario_lote, 4)
+                                'valor_original': round(cant_lote * coste_unitario_lote, 4),
+                                'fecha': lote['fecha']
                             })
                             cantidad_a_procesar = round(cantidad_a_procesar - cant_lote, PRECISION_CRIPTOS)
                             colas[asset].popleft()
@@ -305,7 +306,8 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                             lotes_consumidos.append({
                                 'cantidad': cantidad_a_procesar,
                                 'coste_unitario': coste_unitario_lote,
-                                'valor_original': round(cantidad_a_procesar * coste_unitario_lote, 4)
+                                'valor_original': round(cantidad_a_procesar * coste_unitario_lote, 4),
+                                'fecha': lote['fecha']
                             })
                             lote['cantidad'] = round(lote['cantidad'] - cantidad_a_procesar, PRECISION_CRIPTOS)
                             cantidad_a_procesar = 0
@@ -315,7 +317,7 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                 
                 if not df.at[idx, 'FIFO_calculation']:  # If no error was set
                     detalle_lotes = ', '.join(
-                        f"{l['cantidad']:.6f}@{l['coste_unitario']:.4f}EUR (valor original {l['valor_original']:.4f}EUR)"
+                        f"{l['cantidad']:.6f}@{l['coste_unitario']:.4f}EUR (valor original {l['valor_original']:.4f}EUR, fecha {l['fecha'].strftime('%Y-%m-%d')})"
                         for l in lotes_consumidos
                     )
                     df.at[idx, 'FIFO_calculation'] = (

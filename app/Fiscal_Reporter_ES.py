@@ -33,14 +33,22 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
         trading['FIFO_calculation'].str.extract(r'fecha\s+(\d{4}-\d{2}-\d{2})')[0],
         errors='coerce'
     ).dt.date
-    trading['Valor de adquisicion bruto'] = trading['Valor de adquisicion']
+    #trading['Valor de adquisicion bruto'] = trading['Valor de adquisicion']
     trading['Valor de adquisicion'] = trading['Valor de adquisicion'] - trading['fee_eur']
     trading['Gastos de transmision'] = trading['fee_eur']
     trading['legs_subclasses'] = trading['legs_subclasses'].str.replace('stable_coin', 'crypto')
     #trading['legs_subclasses'] = trading['legs_subclasses']
     
-    reporte_trading = trading[['time', 'asset', 'amount', 'amount_eur', 'fee_eur', 'ganancia_fifo', 'FIFO_calculation', 'Fecha de transmisión', 'Fecha de adquisición', 'Valor de transmision', 'Valor de adquisicion bruto', 'Valor de adquisicion', 'Gastos de transmision', 'legs_subclasses', 'refid', 'fee_eur_compras']]
-    reporte_trading.rename(columns={'fee_eur_compras': 'Gastos_adquisicion'}, inplace=True)
+    reporte_trading = trading[['time', 'asset', 'amount', 'amount_eur', 'fee_eur', 
+                               'ganancia_fifo', 'FIFO_calculation', 'Fecha de transmisión', 
+                               'Fecha de adquisición', 'Valor de transmision', 
+                               #'Valor de adquisicion bruto', 
+                               'Valor de adquisicion', 'Gastos de transmision', 'legs_subclasses', 
+                               'refid', 'fee_eur_compras']]
+    reporte_trading.rename(columns={
+        'fee_eur_compras': 'Gastos de adquisicion (ya incluidos)',
+        'Gastos de transmision': 'Gastos de transmision (ya incluidos)'
+    }, inplace=True)
     
     # --- 2. AIRDROPS / REGALOS (Sin transmisión) ---
     # Ganancias que no derivan de una venta previa
@@ -86,13 +94,17 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
             'fee_eur': 'sum',
             'ganancia_fifo': 'sum',
             'Valor de transmision': 'sum',
-            'Valor de adquisicion bruto': 'sum',
+            #'Valor de adquisicion bruto': 'sum',
             'Valor de adquisicion': 'sum',
             'fee_eur_compras': 'sum',
             'Fecha de transmisión': 'max',
             'Fecha de adquisición': 'min'
         }).round(2).reset_index()
-        resumen_trading.columns = ['Asset', 'Legs_Subclasses', 'Cantidad_Total', 'Valor_EUR', 'Gastos_transmision', 'Ganancia_FIFO', 'Valor_Transmision', 'Valor_Adquisicion_Bruto', 'Valor_Adquisicion', 'Gastos_adquisicion', 'Fecha_transmision', 'Fecha_adquisicion']
+        resumen_trading.columns = ['Asset', 'Legs_Subclasses', 'Cantidad_Total', 'Valor_EUR', 
+                                   'Gastos de transmision (ya incluidos)', 'Ganancia_FIFO', 'Valor_Transmision', 
+                                   #'Valor_Adquisicion_Bruto', 
+                                   'Valor_Adquisicion', 'Gastos de adquisicion (ya incluidos)', 'Fecha_transmision', 
+                                   'Fecha_adquisicion']
     else:
         resumen_trading = pd.DataFrame()
     

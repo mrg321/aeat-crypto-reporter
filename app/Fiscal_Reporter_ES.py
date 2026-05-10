@@ -28,7 +28,13 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
         (df_year['amount'] < 0)
     ].copy()
     
-    reporte_trading = trading[['time', 'asset', 'amount', 'amount_eur', 'fee_eur', 'ganancia_fifo', 'FIFO_calculation', 'Valor de transmision', 'Valor de adquisicion', 'refid']]
+    trading['Fecha de transmisión'] = trading['time'].dt.date
+    trading['Fecha de adquisición'] = pd.to_datetime(
+        trading['FIFO_calculation'].str.extract(r'fecha\s+(\d{4}-\d{2}-\d{2})')[0],
+        errors='coerce'
+    ).dt.date
+    
+    reporte_trading = trading[['time', 'asset', 'amount', 'amount_eur', 'fee_eur', 'ganancia_fifo', 'FIFO_calculation', 'Fecha de transmisión', 'Fecha de adquisición', 'Valor de transmision', 'Valor de adquisicion', 'refid']]
     
     # --- 2. AIRDROPS / REGALOS (Sin transmisión) ---
     # Ganancias que no derivan de una venta previa

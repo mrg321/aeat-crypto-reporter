@@ -132,6 +132,7 @@ def procesar_ledger(archivo_entrada, archivo_salida):
     df['fee_eur'] = 0.0
     df['tasa'] = 0.0
     df['EUR_conversion'] = ''
+    df['legs_subclasses'] = ''
 
     print(f"🚀 Procesando {len(df)} filas...")
 
@@ -156,10 +157,15 @@ def procesar_ledger(archivo_entrada, archivo_salida):
             # El valor real es el valor absoluto de lo que entró o salió en EUR
             valor_fiat_real = abs(pata_fiat['amount'].iloc[0])
 
+        subclass_values = grupo['subclass'].fillna('').astype(str).tolist()
+        subclass_values = [v for v in subclass_values if v != '']
+        legs_subclasses = ' '.join(subclass_values)
+
         for indice in grupo.index:
             fila = df.loc[indice]
             asset = fila['asset']
             
+            df.at[indice, 'legs_subclasses'] = legs_subclasses
             # Caso 1: La fila es el propio EUR
             if asset == 'EUR':
                 df.at[indice, 'amount_eur'] = fila['amount']

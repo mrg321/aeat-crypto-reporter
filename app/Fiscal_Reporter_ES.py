@@ -36,8 +36,9 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     trading['Valor de adquisicion bruto'] = trading['Valor de adquisicion']
     trading['Valor de adquisicion'] = trading['Valor de adquisicion'] - trading['fee_eur']
     trading['Gastos de transmision'] = trading['fee_eur']
+    trading['legs_subclasses'] = trading['legs_subclasses'].str.replace('stable_coin', 'crypto')
     
-    reporte_trading = trading[['time', 'asset', 'amount', 'amount_eur', 'fee_eur', 'ganancia_fifo', 'FIFO_calculation', 'Fecha de transmisión', 'Fecha de adquisición', 'Valor de transmision', 'Valor de adquisicion bruto', 'Valor de adquisicion', 'Gastos de transmision', 'refid']]
+    reporte_trading = trading[['time', 'asset', 'amount', 'amount_eur', 'fee_eur', 'ganancia_fifo', 'FIFO_calculation', 'Fecha de transmisión', 'Fecha de adquisición', 'Valor de transmision', 'Valor de adquisicion bruto', 'Valor de adquisicion', 'Gastos de transmision', 'legs_subclasses', 'refid']]
     
     # --- 2. AIRDROPS / REGALOS (Sin transmisión) ---
     # Ganancias que no derivan de una venta previa
@@ -77,7 +78,7 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     # --- RESÚMENES POR ACTIVO ---
     # Trading por activo
     if not trading.empty:
-        resumen_trading = trading.groupby('asset').agg({
+        resumen_trading = trading.groupby(['asset', 'legs_subclasses']).agg({
             'amount': 'sum',
             'amount_eur': 'sum',
             'fee_eur': 'sum',
@@ -88,7 +89,7 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
             'Fecha de transmisión': 'max',
             'Fecha de adquisición': 'min'
         }).round(2).reset_index()
-        resumen_trading.columns = ['Asset', 'Cantidad_Total', 'Valor_EUR', 'Comisiones_EUR', 'Ganancia_FIFO', 'Valor_Transmision', 'Valor_Adquisicion_Bruto', 'Valor_Adquisicion', 'Fecha_transmision', 'Fecha_adquisicion']
+        resumen_trading.columns = ['Asset', 'Legs_Subclasses', 'Cantidad_Total', 'Valor_EUR', 'Comisiones_EUR', 'Ganancia_FIFO', 'Valor_Transmision', 'Valor_Adquisicion_Bruto', 'Valor_Adquisicion', 'Fecha_transmision', 'Fecha_adquisicion']
     else:
         resumen_trading = pd.DataFrame()
     

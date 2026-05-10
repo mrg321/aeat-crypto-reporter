@@ -28,7 +28,7 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
         (df_year['amount'] < 0)
     ].copy()
     
-    reporte_trading = trading[['time', 'asset', 'amount', 'amount_eur', 'fee_eur', 'ganancia_fifo', 'Valor de transmision', 'Valor de adquisicion', 'refid']]
+    reporte_trading = trading[['time', 'asset', 'amount', 'amount_eur', 'fee_eur', 'ganancia_fifo', 'FIFO_calculation', 'Valor de transmision', 'Valor de adquisicion', 'refid']]
     
     # --- 2. AIRDROPS / REGALOS (Sin transmisión) ---
     # Ganancias que no derivan de una venta previa
@@ -44,8 +44,9 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     reporte_rendimientos = rendimientos[['time', 'asset', 'amount', 'amount_eur', 'fee', 'fee_eur', 'type', 'refid']]
 
     # --- 4. BALANCES (1 Ene y 31 Dic) ---
+    archivo_inventarios = ARCHIVO_ENTRADA.replace('inputs', 'temp').replace('.csv', '_inventarios_fifo.pkl')
     try:
-        with open(ARCHIVO_ENTRADA.replace('inputs', 'temp').replace('.csv', '_inventarios_fifo.pkl'), 'rb') as f:
+        with open(archivo_inventarios, 'rb') as f:
             inventarios = pickle.load(f)
             
         def procesar_inventario(anio):
@@ -61,7 +62,7 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
         balance_inicio = procesar_inventario(anio_fiscal - 1)
         balance_cierre = procesar_inventario(anio_fiscal)
     except FileNotFoundError:
-        print("⚠️ No se encontró el archivo de inventarios. Ejecuta FIFO_calculator actualizado.")
+        print("⚠️ No se encontró el archivo de inventarios {}. Ejecuta FIFO_calculator actualizado.")
         balance_inicio = balance_cierre = pd.DataFrame()
 
     # --- RESÚMENES POR ACTIVO ---

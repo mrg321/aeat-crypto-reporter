@@ -33,8 +33,11 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
         trading['FIFO_calculation'].str.extract(r'fecha\s+(\d{4}-\d{2}-\d{2})')[0],
         errors='coerce'
     ).dt.date
+    trading['Valor de adquisicion bruto'] = trading['Valor de adquisicion']
+    trading['Valor de adquisicion'] = trading['Valor de adquisicion'] - trading['fee_eur']
+    trading['Gastos de transmision'] = trading['fee_eur']
     
-    reporte_trading = trading[['time', 'asset', 'amount', 'amount_eur', 'fee_eur', 'ganancia_fifo', 'FIFO_calculation', 'Fecha de transmisión', 'Fecha de adquisición', 'Valor de transmision', 'Valor de adquisicion', 'refid']]
+    reporte_trading = trading[['time', 'asset', 'amount', 'amount_eur', 'fee_eur', 'ganancia_fifo', 'FIFO_calculation', 'Fecha de transmisión', 'Fecha de adquisición', 'Valor de transmision', 'Valor de adquisicion bruto', 'Valor de adquisicion', 'Gastos de transmision', 'refid']]
     
     # --- 2. AIRDROPS / REGALOS (Sin transmisión) ---
     # Ganancias que no derivan de una venta previa
@@ -80,9 +83,12 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
             'fee_eur': 'sum',
             'ganancia_fifo': 'sum',
             'Valor de transmision': 'sum',
-            'Valor de adquisicion': 'sum'
+            'Valor de adquisicion bruto': 'sum',
+            'Valor de adquisicion': 'sum',
+            'Fecha de transmisión': 'max',
+            'Fecha de adquisición': 'min'
         }).round(2).reset_index()
-        resumen_trading.columns = ['Asset', 'Cantidad_Total', 'Valor_EUR', 'Comisiones_EUR', 'Ganancia_FIFO', 'Valor_Transmision', 'Valor_Adquisicion']
+        resumen_trading.columns = ['Asset', 'Cantidad_Total', 'Valor_EUR', 'Comisiones_EUR', 'Ganancia_FIFO', 'Valor_Transmision', 'Valor_Adquisicion_Bruto', 'Valor_Adquisicion', 'Fecha_transmision', 'Fecha_adquisicion']
     else:
         resumen_trading = pd.DataFrame()
     

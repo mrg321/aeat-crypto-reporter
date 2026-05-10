@@ -115,6 +115,7 @@ def calcular_fifo(archivo_entrada, archivo_salida):
     df['FIFO_calculation'] = ''
     df['Valor de transmision'] = 0.0
     df['Valor de adquisicion'] = 0.0
+    df['fee_eur_compras'] = 0.0
     
     # 2. Agrupamos para identificar patas FIAT (ventas directas a EUR)
     grupos = df.groupby('refid', sort=False)
@@ -136,12 +137,6 @@ def calcular_fifo(archivo_entrada, archivo_salida):
         
         if operaciones.empty:
             continue
-
-        # BUSQUEDA DE PATA EUR (Para valorar la operación con precisión)
-        #pata_fiat = operaciones[operaciones['asset'] == 'EUR']
-        #valor_fiat_real = None
-        #if not pata_fiat.empty:
-        #    valor_fiat_real = abs(pata_fiat['amount'].iloc[0])
 
         for idx in operaciones.index:
             fila = df.loc[idx]
@@ -216,8 +211,6 @@ def calcular_fifo(archivo_entrada, archivo_salida):
             # --- LÓGICA A: ENTRADAS (Compras, Recompensas, Recepciones) ---
             if amount > 0:
                 saldo_anterior_cola = obtener_balance_cola(colas, asset)
-                # Si hay EUR en el refid, ese es el coste. Si no, lo que diga la API.
-                #base_coste = valor_fiat_real if valor_fiat_real is not None else abs(fila['amount_eur'])
                 base_coste = abs(fila['amount_eur'])
                 fee_en_este_asset = abs(fila['fee']) if fila['asset'] == asset else 0
                 cantidad_neta_entrada = amount - fee_en_este_asset
@@ -227,11 +220,13 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                 colas[asset].append({
                     'cantidad': cantidad_neta_entrada,
                     'coste_unitario': coste_unitario,
-                    'fecha': fila['time']
+                    'fecha': fila['time'],
+                    'fee_compra': fee_eur
                 })
                 #print(f"📥 [{fila['time']}] +{amount:.6f} {asset} | Coste: {coste_total:.2f}€ | Ref: {refid}")
 
                 df.at[idx, 'FIFO_calculation'] = f'Entry: added {cantidad_neta_entrada:.6f} {asset} to FIFO queue with unit cost {coste_unitario:.4f} EUR, no gain calculated'
+                df.at[idx, 'fee_eur_compras'] = fee_eur
 
                 if tipo in ['staking', 'earn', 'dividend']:
                     print(f"📥 [{fila['time']}] RECOMPENSA | {asset} | +{amount:.6f} | Ref: {refid}")
@@ -266,7 +261,6 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                 # Aquí sí calculamos beneficio contra la cola FIFO
                 else:
                     # Venta o Permuta con cálculo de ganancia
-                    #base_transmision = valor_fiat_real if valor_fiat_real is not None else abs(fila['amount_eur'])
                     base_transmision = abs(fila['amount_eur'])
                     
                     # La ganancia se calcula sobre el neto recibido (EUR - fee_eur)
@@ -296,7 +290,8 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                                 'cantidad': cant_lote,
                                 'coste_unitario': coste_unitario_lote,
                                 'valor_original': round(cant_lote * coste_unitario_lote, 4),
-                                'fecha': lote['fecha']
+                                'fecha': lote['fecha'],
+                                'fee_compra': lote['fee_compra']
                             })
                             cantidad_a_procesar = round(cantidad_a_procesar - cant_lote, PRECISION_CRIPTOS)
                             colas[asset].popleft()
@@ -307,7 +302,8 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                                 'cantidad': cantidad_a_procesar,
                                 'coste_unitario': coste_unitario_lote,
                                 'valor_original': round(cantidad_a_procesar * coste_unitario_lote, 4),
-                                'fecha': lote['fecha']
+                                'fecha': lote['fecha'],
+                                'fee_compra': lote['fee_compra']
                             })
                             lote['cantidad'] = round(lote['cantidad'] - cantidad_a_procesar, PRECISION_CRIPTOS)
                             cantidad_a_procesar = 0
@@ -317,7 +313,7 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                 
                 if not df.at[idx, 'FIFO_calculation']:  # If no error was set
                     detalle_lotes = ', '.join(
-                        f"{l['cantidad']:.6f}@{l['coste_unitario']:.4f}EUR (valor original {l['valor_original']:.4f}EUR, fecha {l['fecha'].strftime('%Y-%m-%d')})"
+                        f"{l['cantidad']:.6f}@{l['coste_unitario']:.4f}EUR (valor original {l['valor_original']:.4f}EUR, fecha {l['fecha'].strftime('%Y-%m-%d')}, fee_compra {l['fee_compra']:.4f}EUR)"
                         for l in lotes_consumidos
                     )
                     df.at[idx, 'FIFO_calculation'] = (
@@ -326,6 +322,7 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                     )
                     df.at[idx, 'Valor de transmision'] = round(valor_transmision_neto, 4)
                     df.at[idx, 'Valor de adquisicion'] = round(sum(l['valor_original'] for l in lotes_consumidos), 4)
+                    df.at[idx, 'fee_eur_compras'] = sum(l['fee_compra'] for l in lotes_consumidos)
                 
                 if abs(ganancia_total_fila) > 0:
                     print(f"📤 [{fila['time']}] VENTA {asset} | Ganancia: {ganancia_total_fila:+.2f}€ | Ref: {refid}")

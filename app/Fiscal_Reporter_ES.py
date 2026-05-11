@@ -34,10 +34,10 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
         errors='coerce'
     ).dt.date
     #trading['Valor de adquisicion bruto'] = trading['Valor de adquisicion']
-    trading['Valor de adquisicion'] = trading['Valor de adquisicion'] - trading['fee_eur']
+    #trading['Valor de adquisicion'] = trading['Valor de adquisicion'] - trading['fee_eur']
     trading['Gastos de transmision'] = trading['fee_eur']
-    trading['legs_subclasses'] = trading['legs_subclasses'].str.replace('stable_coin', 'crypto')
-    #trading['legs_subclasses'] = trading['legs_subclasses']
+    #trading['legs_subclasses'] = trading['legs_subclasses'].str.replace('stable_coin', 'crypto')
+    trading['legs_subclasses'] = trading['legs_subclasses']
     
     reporte_trading = trading[['time', 'asset', 'amount', 'amount_eur', 'fee_eur', 
                                'ganancia_fifo', 'FIFO_calculation', 'Fecha de transmisión', 
@@ -99,7 +99,7 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
             'fee_eur_compras': 'sum',
             'Fecha de transmisión': 'max',
             'Fecha de adquisición': 'min'
-        }).round(2).reset_index()
+        }).reset_index()
         resumen_trading.columns = ['Asset', 'Legs_Subclasses', 'Cantidad_Total', 'Valor_EUR', 
                                    'Gastos de transmision (ya incluidos)', 'Ganancia_FIFO', 'Valor_Transmision', 
                                    #'Valor_Adquisicion_Bruto', 
@@ -115,7 +115,7 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
             'amount_eur': 'sum',
             'fee': 'sum',
             'fee_eur': 'sum'
-        }).round(2).reset_index()
+        }).reset_index()
         resumen_airdrops.columns = ['Asset', 'Cantidad_Total', 'Valor_EUR', 'Fee', 'Fee_EUR']
     else:
         resumen_airdrops = pd.DataFrame()
@@ -127,7 +127,7 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
             'amount_eur': 'sum',
             'fee': 'sum',
             'fee_eur': 'sum'
-        }).round(2).reset_index()
+        }).reset_index()
         resumen_rendimientos.columns = ['Asset', 'Cantidad_Total', 'Valor_EUR', 'Fee', 'Fee_EUR']
     else:
         resumen_rendimientos = pd.DataFrame()
@@ -156,10 +156,10 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
         df_year.to_excel(writer, sheet_name='5. Datos_Entrada', index=False)
 
         # Formatos básicos
-        workbook = writer.book
-        fmt_money = workbook.add_format({'num_format': '#,##0.00€'})
-        for sheet in writer.sheets.values():
-            sheet.set_column('C:G', 15, fmt_money)
+        #workbook = writer.book
+        #fmt_money = workbook.add_format({'num_format': '#,##0.00€'})
+        #for sheet in writer.sheets.values():
+        #    sheet.set_column('D:G', 15, fmt_money)
 
     print(f"✅ Informe Excel guardado como: {nombre_excel}")
 

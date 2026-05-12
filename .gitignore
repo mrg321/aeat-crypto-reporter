@@ -7,10 +7,13 @@
 # Bloquear todas las SALIDAS (evita subir cálculos personales o confidenciales)
 data/outputs/
 
-# Bloquear las ENTRADAS (evita subir tus bases de cotización reales)
+# Bloquear los ENTRADAS (evita subir tus bases de cotización reales)
 data/inputs/
 
-# Bloquear las ficheros temporales
+# Bloquear los ficheros temporales
+data/temp/
+
+# Bloquear los ficheros de testing
 data/temp/
 
 # OPCIONAL: Si quieres que la carpeta de entradas aparezca en Git 

@@ -39,7 +39,7 @@ Este proyecto es una solución integral para el procesamiento de archivos **Ledg
     ```
 
 ##  *Configurar Datos:*
-    - Extrae tu informe ledger de Kraken y cópialo en /data/inputs
+    - Extrae tu informe ledger completo (desde tu alta en la plataforma) de Kraken y cópialo en /data/inputs
 
 ## 📋 Ejemplo de Uso
 
@@ -51,7 +51,7 @@ python ./app/main.py
 
 El archivo `.gitignore` está configurado para proteger tu privacidad:
 - **Ignora** los archivos `.env` con tus datos personales.
-- **Ignora** el contenido de `data/inputs/` y `data/outputs/` para que tus bases de cotización reales y tus informes finales no se suban a GitHub.
+- **Ignora** el contenido de `data/inputs/`, `data/temp` y `data/outputs/` para que tus datos no se suban a GitHub.
 - **Mantiene** la estructura de carpetas gracias a los archivos `.gitkeep`.
 
 ## ⚠️ Nota Legal

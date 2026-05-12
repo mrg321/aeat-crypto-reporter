@@ -13,7 +13,7 @@ from Core import ARCHIVO_ENTRADA
 
 from pathlib import Path
 
-def orchestrator(archivo_entrada=ARCHIVO_ENTRADA):
+def orchestrator(archivo_entrada=ARCHIVO_ENTRADA, anio_a_reportar=None):
     # --- CONFIGURACIÓN DE RUTAS ---
     archivo_original = archivo_entrada
     archivo_convertido = archivo_entrada.replace('inputs', 'temp').replace('.csv', '_converted_pro.csv')
@@ -22,7 +22,14 @@ def orchestrator(archivo_entrada=ARCHIVO_ENTRADA):
 
     # Definir año fiscal (por defecto el año pasado)
     anio_actual = datetime.now().year
-    anio_a_reportar = anio_actual - 1
+    if anio_a_reportar is None:
+        anio_a_reportar = anio_actual - 1
+    else:
+        try:
+            anio_a_reportar = int(anio_a_reportar)
+        except (TypeError, ValueError):
+            print(f"⚠️ Año informado inválido ('{anio_a_reportar}'). Usando el año fiscal anterior {anio_actual - 1}.")
+            anio_a_reportar = anio_actual - 1
 
     print("🚀 Iniciando Pipeline Contable de Criptoactivos...")
 

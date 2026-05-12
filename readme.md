@@ -18,8 +18,59 @@ Este proyecto es una solución integral para el procesamiento de archivos **Ledg
 3.  **`FIFO_calculator.py`**: El motor contable. Gestiona las colas `deque` por activo, calcula las ganancias y genera un estado de inventario histórico (`.pkl`).
 4.  **`Fiscal_Reporter_ES.py`**: Generador de informes. Clasifica cada operación en su casilla fiscal correspondiente y crea el Excel final.
 
-## 🛠️ Requisitos e Instalación
+## ☑️ Requisitos SW
 
-Es necesario tener instalado Python 3.8+ y las siguientes dependencias:
-```bash
-pip install pandas xlsxwriter requests
+- Python 3.12.10 ó superior (https://www.python.org/downloads/)
+- Git (p. ej. git version 2.53.0.windows.2) (https://git-scm.com/install/windows)
+
+## 🛠️ Instalación
+
+##  *Clonar y preparar entorno:*
+    ```bash
+    git clone <repositorio>
+    cd <repositorio>
+    python -m venv venv
+    source venv/bin/activate  # venv\Scripts\activate o ó .\venv\Scripts\Activate.ps1 en Windows
+    ```
+
+##  *Instalar dependencias:*
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+##  *Configurar Datos:*
+    - Extrae tu informe ledger de Kraken y cópialo en /data/inputs
+
+## 📋 Ejemplo de Uso
+
+```python
+python ./app/main.py
+```
+
+## 🔒 Seguridad y Git
+
+El archivo `.gitignore` está configurado para proteger tu privacidad:
+- **Ignora** los archivos `.env` con tus datos personales.
+- **Ignora** el contenido de `data/inputs/` y `data/outputs/` para que tus bases de cotización reales y tus informes finales no se suban a GitHub.
+- **Mantiene** la estructura de carpetas gracias a los archivos `.gitkeep`.
+
+## ⚠️ Nota Legal
+
+Este software es una herramienta de apoyo y consulta basada en la interpretación de la ley vigente. Los cálculos definitivos deben ser validados siempre por uno mismo y carecen de cualquier valor contractual o legal.
+👉 Revisar siempre con asesor fiscal.
+
+---
+
+# 🧠 Próximas mejoras sugeridas
+
+* Separar la salida de la cantidad principal y la comisión de esa salida para calcular 2 costes FIFO por separado. Además, el precio al que sale la comisión debería ser el del cálculo API, en vez del calculado comparando con la otra pata.
+* Añadir texto al informe Fiscal con la ubicación en el programa Renta de los importes a rellenar.
+
+
+---
+
+# 📄 Licencia
+
+MIT License
+
+---

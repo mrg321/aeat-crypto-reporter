@@ -8,7 +8,30 @@ from datetime import datetime
 import time
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+import time
+from functools import wraps
 from Core import ARCHIVO_ENTRADA
+
+def retry_api_call(max_retries=3, delay=30):
+    """Decorador para gestionar reintentos en llamadas a la API de Kraken"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            retries = 0
+            while retries < max_retries:
+                result = func(self, *args, **kwargs)
+                if result is not None:
+                    return result
+                
+                retries += 1
+                if retries < max_retries:
+                    print(f"⏳ Reintento {retries}/{max_retries} tras error o límite. Esperando {delay}s...")
+                    time.sleep(delay)
+            
+            print(f"❌ Fallo definitivo tras {max_retries} intentos.")
+            return None
+        return wrapper
+    return decorator
 
 class KrakenConverter:
     def __init__(self):
@@ -52,32 +75,35 @@ class KrakenConverter:
             print(f"❌ Error crítico obteniendo pares: {e}")
             return {}
 
+    @retry_api_call(max_retries=3, delay=30)
     def _consultar_precio_api(self, pair_id, altname, timestamp):
-        """Helper para realizar la consulta técnica y manejar reintentos"""
+        """Realiza la consulta técnica a la API pública de Kraken (OHLC)"""
         try:
             url = f"{self.base_url}OHLC?pair={pair_id}&interval=1440&since={timestamp}"
-            respuesta = self.session.get(url)
+            respuesta = self.session.get(url, timeout=10) # Añadido timeout por seguridad
             datos = respuesta.json()
             
-            if "EGeneral:Too many requests" in str(datos.get('error')):
-                print(f"⏳ Límite alcanzado para {altname}. Esperando 30s...")
-                time.sleep(30)
-                return self._consultar_precio_api(pair_id, altname, timestamp)
-
+            # Validación de errores de la API
             if datos.get('error'):
-                print(f"⚠️ Error en par {altname}: {datos['error']}")
+                error_msg = str(datos['error'])
+                if "EGeneral:Too many requests" in error_msg:
+                    # Retornamos None para que el decorador actúe y reintente
+                    return None
+                print(f"⚠️ Error en par {altname}: {error_msg}")
                 return None
                 
-            # Punto 2: Se usa pair_id para extraer los datos del JSON de respuesta
+            # Extracción del precio de cierre (índice 4 del primer registro OHLC)
             ohlc_data = datos['result'].get(pair_id)
             if ohlc_data and len(ohlc_data) > 0:
                 tasa = float(ohlc_data[0][4])
                 return tasa if tasa > 0 else None
+                
             return None
             
         except Exception as e:
-            print(f"❌ Error en solicitud para {altname}: {e}")
+            print(f"❌ Error de conexión para {altname}: {e}")
             return None
+
 
     def obtener_tasa_conversion(self, asset, fecha):
         """Lógica con fallback y búsqueda exacta por altname/pair_id"""

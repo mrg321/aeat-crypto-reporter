@@ -65,6 +65,9 @@ Este software es una herramienta de apoyo y consulta basada en la interpretació
 
 * Separar la salida de la cantidad principal y la comisión de esa salida para calcular 2 costes FIFO por separado. Además, el precio al que sale la comisión debería ser el del cálculo API, en vez del calculado comparando con la otra pata.
 * Añadir texto al informe Fiscal con la ubicación en el programa Renta de los importes a rellenar e instrucciones de cómo hacerlo.
+* Mejoras en seguridad y confiabilidad:
+*   - Implementar sistema híbrido de caché para no tener que consultar siempre al API de Kraken
+*   - Ajustes para permitir ejecutar en Google Colab y así no tener que ejecutar en Local
 
 
 ---

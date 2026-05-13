@@ -9,16 +9,27 @@ from datetime import datetime
 import EURconverter_pro as converter
 import FIFO_calculator as calculator
 import Fiscal_Reporter_ES as reporter
-from Core import ARCHIVO_ENTRADA
+import sys
+import subprocess
+from Core import ARCHIVO_ENTRADA, IN_COLAB
+
+# --- INSTALACIÓN AUTOMÁTICA EN COLAB ---
+if IN_COLAB:
+    print("☁️ Entorno Google Colab detectado. Instalando dependencias...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "xlsxwriter", "pandas", "requests"])
 
 from pathlib import Path
 
 def orchestrator(archivo_entrada=ARCHIVO_ENTRADA, anio_a_reportar=None):
     # --- CONFIGURACIÓN DE RUTAS ---
-    archivo_original = archivo_entrada
-    archivo_convertido = archivo_entrada.replace('inputs', 'temp').replace('.csv', '_converted_pro.csv')
-    archivo_fifo = archivo_entrada.replace('inputs', 'temp').replace('.csv', '_FIFO.csv')
-    informe_fiscal = archivo_entrada.replace('inputs', 'outputs').replace('.csv', '_Informe_Fiscal')
+    archivo_original = Path(archivo_entrada)
+    #archivo_convertido = archivo_entrada.replace('inputs', 'temp').replace('.csv', '_converted_pro.csv')
+    #archivo_fifo = archivo_entrada.replace('inputs', 'temp').replace('.csv', '_FIFO.csv')
+    #informe_fiscal = archivo_entrada.replace('inputs', 'outputs').replace('.csv', '_Informe_Fiscal')
+
+    archivo_convertido = str(archivo_original.parents[1] / "temp" / f"{archivo_original.stem}_converted_pro.csv")
+    archivo_fifo = str(archivo_original.parents[1] / "temp" / f"{archivo_original.stem}_FIFO.csv")
+    informe_fiscal = str(archivo_original.parents[1] / "outputs" / f"{archivo_original.stem}_Informe_Fiscal")
 
     # Definir año fiscal (por defecto el año pasado)
     anio_actual = datetime.now().year

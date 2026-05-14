@@ -3,10 +3,10 @@
 # -*- coding: utf-8 -*-
 
 import pandas as pd
-import pickle
+import json
 from datetime import datetime
 
-from Core import ARCHIVO_ENTRADA
+from Core import ARCHIVO_ENTRADA, TOLERANCIA_DUST
 
 def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     if anio_fiscal is None:
@@ -64,21 +64,31 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     reporte_rendimientos = rendimientos[['time', 'asset', 'amount', 'amount_eur', 'fee', 'fee_eur', 'type', 'refid']]
 
     # --- 4. BALANCES (1 Ene y 31 Dic) ---
-    archivo_inventarios = ARCHIVO_ENTRADA.replace('inputs', 'temp').replace('.csv', '_inventarios_fifo.pkl')
+    archivo_inventarios = ARCHIVO_ENTRADA.replace('inputs', 'temp').replace('.csv', '_inventarios_fifo.json')
     try:
-        with open(archivo_inventarios, 'rb') as f:
-            inventarios = pickle.load(f)
-            
+        with open(archivo_inventarios, 'r') as f:
+            inventarios = json.load(f)
+
         def procesar_inventario(anio):
             datos = []
-            if anio in inventarios:
-                for asset, lotes in inventarios[anio].items():
-                    cant_total = sum(l['cantidad'] for l in lotes)
-                    valor_eur = sum(l['cantidad'] * l['coste_unitario'] for l in lotes)
-                    if cant_total > 1e-8:
-                        datos.append({'Asset': asset, 'Cantidad': cant_total, 'Valor_Euros': valor_eur})
+            # Convertimos el año a string para asegurar la compatibilidad con las claves de JSON
+            anio_str = str(anio)
+            
+            if anio_str in inventarios:
+                for asset, lotes in inventarios[anio_str].items():
+                    # Usamos .get() por seguridad y aseguramos que cantidad y coste sean floats
+                    cant_total = sum(float(l.get('cantidad', 0)) for l in lotes)
+                    valor_eur = sum(float(l.get('cantidad', 0)) * float(l.get('coste_unitario', 0)) for l in lotes)
+                    
+                    if cant_total > TOLERANCIA_DUST:  # Solo incluir activos con cantidad significativa
+                        datos.append({
+                            'Asset': asset, 
+                            'Cantidad': cant_total, 
+                            'Valor_Euros': valor_eur
+                        })
+            
             return pd.DataFrame(datos)
-
+        
         balance_inicio = procesar_inventario(anio_fiscal - 1)
         balance_cierre = procesar_inventario(anio_fiscal)
     except FileNotFoundError:

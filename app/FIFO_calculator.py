@@ -3,12 +3,22 @@
 # -*- coding: utf-8 -*-
 
 import pandas as pd
-import pickle
+import json
 
 from collections import deque
 
 # Configuración de precisión
 from Core import PRECISION_CRIPTOS, TOLERANCIA_DUST, ARCHIVO_ENTRADA
+
+# Antes de guardar, convertimos el diccionario a uno "JSON-friendly"
+def serializar_inventarios(obj):
+    if isinstance(obj, (pd.Timestamp, pd.DatetimeIndex)):
+        return obj.isoformat()
+    if isinstance(obj, dict):
+        return {k: serializar_inventarios(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [serializar_inventarios(i) for i in obj]
+    return obj
 
 def normalizar_activo(asset):
     if pd.isna(asset): return asset
@@ -362,13 +372,13 @@ def calcular_fifo(archivo_entrada, archivo_salida):
     # Guardar el último año procesado
     inventarios_anuales[anio_actual] = {a: list(c) for a, c in colas.items()}
 
-    # --- EXPORTACIÓN DEL FICHERO PKL ---
-    #path_pkl = os.path.join(os.path.dirname(archivo_salida), 'inventarios_fifo.pkl')
-    path_pkl = ARCHIVO_ENTRADA.replace('inputs', 'temp').replace('.csv', '_inventarios_fifo.pkl')
-    with open(path_pkl, 'wb') as f:
-        pickle.dump(inventarios_anuales, f)
-    
-    print(f"📦 Inventarios anuales guardados en: {path_pkl}")
+    # --- EXPORTACIÓN DEL FICHERO JSON ---
+    path_json = ARCHIVO_ENTRADA.replace('inputs', 'temp').replace('.csv', '_inventarios_fifo.json')
+    inventarios_listos = serializar_inventarios(inventarios_anuales)
+    with open(path_json, 'w') as f:
+        json.dump(inventarios_listos, f, indent=4)
+
+    print(f"📦 Inventarios anuales guardados en: {path_json}")
 
     # Guardado
     df.to_csv(archivo_salida, index=False)

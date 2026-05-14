@@ -25,7 +25,7 @@ Este proyecto es una solución integral para el procesamiento de archivos **Ledg
 
 ## 🛠️ Instalación
 
-##  *Clonar y preparar entorno:*
+###  *Clonar y preparar entorno:*
     ```bash
     git clone <repositorio>
     cd <repositorio>
@@ -33,18 +33,55 @@ Este proyecto es una solución integral para el procesamiento de archivos **Ledg
     source venv/bin/activate  # venv\Scripts\activate o ó .\venv\Scripts\Activate.ps1 en Windows
     ```
 
-##  *Instalar dependencias:*
+###  *Instalar dependencias:*
     ```bash
     pip install -r requirements.txt
     ```
 
-##  *Configurar Datos:*
+###  *Configurar Datos:*
     - Extrae tu informe ledger completo (desde tu alta en la plataforma) de Kraken y cópialo en /data/inputs
 
-## 📋 Ejemplo de Uso
+## 📋 Ejemplo de Uso en Local
 
 ```python
 python ./app/main.py
+```
+
+## 🚀 Ejecución en Google Colab
+
+Si prefieres no configurar un entorno local, puedes ejecutar este proyecto en la nube usando Google Colab. Sigue estos pasos:
+
+### 1. Preparación en Google Drive
+Para mantener la persistencia de los datos, el proyecto debe estar alojado en tu Drive:
+1. Sube la carpeta raíz del proyecto (`Proyecto_Crypto_Reporter`) a tu Google Drive.
+2. Asegúrate de mantener la estructura:
+   - `Proyecto_Crypto_Reporter/app/` (Scripts .py)
+   - `Proyecto_Crypto_Reporter/data/inputs/` (Tu archivo CSV de Kraken)
+
+### 2. Abrir en Colab
+Crea un nuevo cuaderno (.ipynb) en Colab y ejecuta las siguientes celdas:
+
+**Paso A: Montar Drive y Configurar Rutas**
+```python
+from google.colab import drive
+import os
+
+# Esto abrirá una ventana pidiéndote permiso para acceder a tus archivos
+drive.mount('/content/drive')
+
+# Cambiamos el directorio de trabajo a tu carpeta del proyecto
+# Asegúrate de que el nombre coincida exactamente con la carpeta que creaste
+os.chdir('/content/drive/MyDrive/Proyecto_Crypto_Reporter')
+
+# Verificamos que estamos en el sitio correcto
+print("Directorio actual:", os.getcwd())
+!ls
+
+# Añadimos la carpeta /app a la lista de sitios donde Python busca archivos
+sys.path.append(os.path.abspath('./app'))
+
+# Ahora se ejecuta main dentro de /app
+!python app/main.py
 ```
 
 ## 🔒 Seguridad y Git
@@ -77,3 +114,4 @@ Este software es una herramienta de apoyo y consulta basada en la interpretació
 MIT License
 
 ---
+

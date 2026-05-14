@@ -10,13 +10,14 @@ import EURconverter_pro as converter
 import FIFO_calculator as calculator
 import Fiscal_Reporter_ES as reporter
 import sys
-import subprocess
+import subprocess  # nosec B404
 from Core import ARCHIVO_ENTRADA, IN_COLAB
 
 # --- INSTALACIÓN AUTOMÁTICA EN COLAB ---
 if IN_COLAB:
     print("☁️ Entorno Google Colab detectado. Instalando dependencias...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "xlsxwriter", "pandas", "requests"])
+    # Usamos nosec B603 porque el input está controlado y no hay shell injection posible
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "xlsxwriter", "pandas", "requests"])  # nosec B603
 
 from pathlib import Path
 

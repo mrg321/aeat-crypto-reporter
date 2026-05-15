@@ -7,6 +7,7 @@
 
 Este proyecto es una solución integral para el procesamiento de archivos **Ledger de Kraken**, permitiendo la conversión de precios a Euros (EUR), el cálculo de ganancias/pérdidas patrimoniales mediante el método **FIFO** y la generación de un **informe fiscal** detallado para la AEAT (España).
 
+
 ## 🚀 Funcionalidades Principales
 
 *   **Conversión de Divisas:** Obtención automática de precios históricos vía API de Kraken para cada operación.

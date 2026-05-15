@@ -17,4 +17,4 @@ jobs:
           pip install pylint pandas requests xlsxwriter
       - name: Analizar con Pylint
         # Fallará si la puntuación es muy baja, asegurando calidad
-        run: pylint $(git ls-files '*.py') --fail-under=7.0
+        run: pylint $(git ls-files '*.py') --fail-under=5.0

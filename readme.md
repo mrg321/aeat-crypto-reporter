@@ -4,6 +4,7 @@
 [![Bandit](https://github.com/mrg321/aeat-crypto-reporter/actions/workflows/bandit.yml/badge.svg)](https://github.com/mrg321/aeat-crypto-reporter/actions/workflows/bandit.yml)
 [![Calidad de Código](https://github.com/mrg321/aeat-crypto-reporter/actions/workflows/linting.yml/badge.svg)](https://github.com/mrg321/aeat-crypto-reporter/actions/workflows/linting.yml)
 [![CodeQL Advanced](https://github.com/mrg321/aeat-crypto-reporter/actions/workflows/codeql.yml/badge.svg)](https://github.com/mrg321/aeat-crypto-reporter/actions/workflows/codeql.yml)
+![Dependencies](https://img.shields.io/badge/dependencies-up--to--date-brightgreen)
 
 Este proyecto es una solución integral para el procesamiento de archivos **Ledger de Kraken**, permitiendo la conversión de precios a Euros (EUR), el cálculo de ganancias/pérdidas patrimoniales mediante el método **FIFO** y la generación de un **informe fiscal** detallado para la AEAT (España).
 
@@ -91,12 +92,33 @@ sys.path.append(os.path.abspath('./app'))
 !python app/main.py
 ```
 
-## 🔒 Seguridad y Git
+## 🛡️ Compromiso de Seguridad Total
+
+### Tus datos no suben a GitHub:
 
 El archivo `.gitignore` está configurado para proteger tu privacidad:
-- **Ignora** los archivos `.env` con tus datos personales.
 - **Ignora** el contenido de `data/inputs/`, `data/temp` y `data/outputs/` para que tus datos no se suban a GitHub.
 - **Mantiene** la estructura de carpetas gracias a los archivos `.gitkeep`.
+
+### Estatus de Auditoría
+
+- Escaneo de Vulnerabilidades: Auditado contra inyección de código y fugas de datos.
+
+- Análisis Estático Avanzado: Motor de seguridad de GitHub que verifica la lógica del código.
+
+- Calidad de Software: Cumplimiento de estándares profesionales de programación en Python.
+
+### Mitigación de vulnerabilidades conocidas
+
+- Sin Claves Privadas (API Keys): El script NO solicita tus claves de API. Solo utiliza consultas a los endpoints públicos de Kraken para obtener precios históricos de mercado. Tus fondos nunca están en riesgo.
+- Ejecución 100% Local o en la Nube Controlada: Los datos de tus transacciones (ledgers.csv) se procesan en tu propia máquina o en tu instancia privada de Google Colab, si prefieres aún más seguridad. No se envía ninguna información personal a servidores externos.
+- No se usan librerías sospechosas como Pickle. Los archivos de inventario son JSON legibles por humanos y 100% seguros.
+- Conexiones Protegidas: Todas las llamadas a la API incluyen timeouts y gestión de errores para evitar bloqueos y garantizar la estabilidad del sistema.
+- Todas las llamadas al sistema (como la instalación de dependencias en Google Colab) se realizan sin usar el shell del sistema (shell=False) y con argumentos estáticos, evitando ataques de inyección.
+- El proyecto incluye escaneos automáticos de Dependabot para asegurar que todas las librerías utilizadas (Pandas, Requests, etc.) estén actualizadas y libres de vulnerabilidades conocidas.
+
+
+
 
 ## ⚠️ Nota Legal
 
@@ -109,9 +131,7 @@ Este software es una herramienta de apoyo y consulta basada en la interpretació
 
 * Separar la salida de la cantidad principal y la comisión de esa salida para calcular 2 costes FIFO por separado. Además, el precio al que sale la comisión debería ser el del cálculo API, en vez del calculado comparando con la otra pata.
 * Añadir texto al informe Fiscal con la ubicación en el programa Renta de los importes a rellenar e instrucciones de cómo hacerlo.
-* Mejoras en seguridad y confiabilidad:
-*   - Implementar sistema híbrido de caché para no tener que consultar siempre al API de Kraken
-*   - Ajustes para permitir ejecutar en Google Colab y así no tener que ejecutar en Local
+* Implementar sistema híbrido de caché para no tener que consultar siempre al API de Kraken
 
 
 ---

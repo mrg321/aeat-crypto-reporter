@@ -6,7 +6,7 @@
 [![CodeQL Advanced](https://github.com/mrg321/aeat-crypto-reporter/actions/workflows/codeql.yml/badge.svg)](https://github.com/mrg321/aeat-crypto-reporter/actions/workflows/codeql.yml)
 ![Dependencies](https://img.shields.io/badge/dependencies-up--to--date-brightgreen)
 
-Este proyecto es una solución integral para el procesamiento de archivos **Ledger de Kraken**, permitiendo la conversión de precios a Euros (EUR), el cálculo de ganancias/pérdidas patrimoniales mediante el método **FIFO** y la generación de un **informe fiscal** detallado para la AEAT (España).
+Este proyecto es una solución limitada para el procesamiento de archivos **Ledger de Kraken**, permitiendo la conversión de precios a Euros (EUR), el cálculo de ganancias/pérdidas patrimoniales mediante el método **FIFO** y la generación de un **informe fiscal** detallado para la AEAT (España).
 
 
 ## 🚀 Funcionalidades Principales
@@ -94,7 +94,7 @@ sys.path.append(os.path.abspath('./app'))
 
 ## 🛡️ Compromiso de Seguridad Total
 
-### Tus datos no suben a GitHub:
+### Tus datos no suben a GitHub
 
 El archivo `.gitignore` está configurado para proteger tu privacidad:
 - **Ignora** el contenido de `data/inputs/`, `data/temp` y `data/outputs/` para que tus datos no se suban a GitHub.
@@ -117,7 +117,19 @@ El archivo `.gitignore` está configurado para proteger tu privacidad:
 - Todas las llamadas al sistema (como la instalación de dependencias en Google Colab) se realizan sin usar el shell del sistema (shell=False) y con argumentos estáticos, evitando ataques de inyección.
 - El proyecto incluye escaneos automáticos de Dependabot para asegurar que todas las librerías utilizadas (Pandas, Requests, etc.) estén actualizadas y libres de vulnerabilidades conocidas.
 
+## ⚠️ Limitaciones y Avisos Importantes (Caveats)
 
+Este proyecto se encuentra en una fase temprana de desarrollo (Beta). Antes de utilizar los reportes para fines oficiales, por favor ten en cuenta lo siguiente:
+
+- Alcance de las Pruebas: El motor de cálculo ha sido validado con un conjunto de datos muy reducido (basado en los ledgers reales de sólo dos usuarios y una variedad limitada de criptoactivos). Por ello, es probable que existan escenarios o tipos de operaciones no contemplados.
+
+- Necesidad de Testing: Se buscan voluntarios dispuestos a probar la herramienta con diferentes tipos de carteras y reportar posibles discrepancias. Si encuentras un error, abrir un Issue en este repositorio es la mejor forma de ayudar.
+
+- Fiabilidad de los Balances en los Ledgers: Se ha detectado que la información de saldos (balance) incluida en los archivos CSV descargados de Kraken no siempre se actualiza en tiempo real o puede contener inconsistencias tras ciertas operaciones complejas (como el staking o transferencias internas).
+
+- Reconciliación Manual Obligatoria: Debido a lo anterior, la función de reconciliación de balances puede arrojar errores frecuentes. Es fundamental que el usuario verifique los balances finales en fechas clave (como el 31 de diciembre) comparando los resultados del script directamente con la información mostrada en la interfaz web de Kraken.com.
+
+- Exención de Responsabilidad: Esta herramienta se proporciona "tal cual", con fines informativos y de ayuda al cálculo. No constituye asesoramiento fiscal ni legal. El usuario es el único responsable de la veracidad de los datos presentados ante las autoridades tributarias.
 
 
 ## ⚠️ Nota Legal
@@ -131,7 +143,7 @@ Este software es una herramienta de apoyo y consulta basada en la interpretació
 
 * Separar la salida de la cantidad principal y la comisión de esa salida para calcular 2 costes FIFO por separado. Además, el precio al que sale la comisión debería ser el del cálculo API, en vez del calculado comparando con la otra pata.
 * Añadir texto al informe Fiscal con la ubicación en el programa Renta de los importes a rellenar e instrucciones de cómo hacerlo.
-* Implementar sistema híbrido de caché para no tener que consultar siempre al API de Kraken
+* Implementar sistema híbrido de caché para no tener que consultar siempre al API de Kraken.
 
 
 ---

@@ -1,4 +1,9 @@
+
 # Kraken Tax & FIFO Calculator (Spain Edition)
+
+[![Security: Bandit](https://github.com/TU_USUARIO/TU_REPO/actions/workflows/security_audit.yml/badge.svg)](https://github.com/TU_USUARIO/TU_REPO/actions/workflows/security_audit.yml)
+[![Code Quality: Pylint](https://github.com/TU_USUARIO/TU_REPO/actions/workflows/linting.yml/badge.svg)](https://github.com/TU_USUARIO/TU_REPO/actions/workflows/linting.yml)
+[![CodeQL](https://github.com/TU_USUARIO/TU_REPO/actions/workflows/codeql.yml/badge.svg)](https://github.com/TU_USUARIO/TU_REPO/actions/workflows/codeql.yml)
 
 Este proyecto es una solución integral para el procesamiento de archivos **Ledger de Kraken**, permitiendo la conversión de precios a Euros (EUR), el cálculo de ganancias/pérdidas patrimoniales mediante el método **FIFO** y la generación de un **informe fiscal** detallado para la AEAT (España).
 

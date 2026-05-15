@@ -5,7 +5,7 @@ pandas>=2.0.0
 xlsxwriter>=3.1.0
 
 # Cliente HTTP para consultas de precios a la API de Kraken
-requests>=2.31.0
+requests>=2.34.2
 
 # Gestión de fechas y tiempos (incluido en la librería estándar, 
 # pero pandas requiere soporte de zona horaria en algunos sistemas)

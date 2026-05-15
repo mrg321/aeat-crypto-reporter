@@ -373,12 +373,12 @@ def calcular_fifo(archivo_entrada, archivo_salida):
     inventarios_anuales[anio_actual] = {a: list(c) for a, c in colas.items()}
 
     # --- EXPORTACIÓN DEL FICHERO JSON ---
-    path_json = archivo_entrada.replace('inputs', 'temp').replace('.csv', '_inventarios_fifo.json')
+    archivo_inventarios = archivo_entrada.replace('inputs', 'temp').replace('_converted_pro.csv', '_inventarios_fifo.json')
     inventarios_listos = serializar_inventarios(inventarios_anuales)
-    with open(path_json, 'w') as f:
+    with open(archivo_inventarios, 'w') as f:
         json.dump(inventarios_listos, f, indent=4)
 
-    print(f"📦 Inventarios anuales guardados en: {path_json}")
+    print(f"📦 Inventarios anuales guardados en: {archivo_inventarios}")
 
     # Guardado
     df.to_csv(archivo_salida, index=False)

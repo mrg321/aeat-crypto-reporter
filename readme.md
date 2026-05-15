@@ -65,6 +65,7 @@ Crea un nuevo cuaderno (.ipynb) en Colab y ejecuta las siguientes celdas:
 ```python
 from google.colab import drive
 import os
+import sys
 
 # Esto abrirá una ventana pidiéndote permiso para acceder a tus archivos
 drive.mount('/content/drive')

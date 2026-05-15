@@ -64,7 +64,7 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     reporte_rendimientos = rendimientos[['time', 'asset', 'amount', 'amount_eur', 'fee', 'fee_eur', 'type', 'refid']]
 
     # --- 4. BALANCES (1 Ene y 31 Dic) ---
-    archivo_inventarios = ARCHIVO_ENTRADA.replace('inputs', 'temp').replace('.csv', '_inventarios_fifo.json')
+    archivo_inventarios = archivo_fifo.replace('_FIFO.csv', '_inventarios_fifo.json')
     try:
         with open(archivo_inventarios, 'r') as f:
             inventarios = json.load(f)
@@ -92,7 +92,7 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
         balance_inicio = procesar_inventario(anio_fiscal - 1)
         balance_cierre = procesar_inventario(anio_fiscal)
     except FileNotFoundError:
-        print("⚠️ No se encontró el archivo de inventarios {}. Ejecuta FIFO_calculator actualizado.")
+        print(f"⚠️ No se encontró el archivo de inventarios {archivo_inventarios}. Ejecuta FIFO_calculator actualizado.")
         balance_inicio = balance_cierre = pd.DataFrame()
 
     # --- RESÚMENES POR ACTIVO ---

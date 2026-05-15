@@ -1,0 +1,20 @@
+name: "Calidad de Código"
+
+on: [push, pull_request]
+
+jobs:
+  pylint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install pylint pandas requests xlsxwriter
+      - name: Analizar con Pylint
+        # Fallará si la puntuación es muy baja, asegurando calidad
+        run: pylint $(git ls-files '*.py') --fail-under=7.0

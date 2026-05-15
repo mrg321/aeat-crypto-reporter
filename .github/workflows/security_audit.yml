@@ -1,0 +1,27 @@
+name: "Seguridad y Auditoría"
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  bandit_scan:
+    name: "Escaneo con Bandit"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar Bandit
+        run: pip install bandit
+
+      - name: Ejecutar Bandit
+        # Excluimos .venv y solo reportamos severidad media/alta (-ll)
+        run: bandit -r . -x ./.venv -ll -ii

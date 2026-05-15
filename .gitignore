@@ -33,6 +33,10 @@ app/__pycache__/
 venv/
 env/
 
+# --- GITHUB ---
+.github/
+.github/workflows/
+
 # --- ARCHIVOS DE SISTEMA / IDE ---
 .vscode/
 .idea/

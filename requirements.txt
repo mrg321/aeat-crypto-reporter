@@ -1,5 +1,5 @@
 # Manipulación y análisis de datos
-pandas>=2.0.0
+pandas>=3.0.3
 
 # Motor para la creación de informes Excel con formato (AEAT)
 xlsxwriter>=3.1.0

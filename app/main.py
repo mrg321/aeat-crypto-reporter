@@ -17,7 +17,10 @@ from Core import ARCHIVO_ENTRADA, IN_COLAB
 if IN_COLAB:
     print("☁️ Entorno Google Colab detectado. Instalando dependencias...")
     # Usamos nosec B603 porque el input está controlado y no hay shell injection posible
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "xlsxwriter", "pandas", "requests"])  # nosec B603
+    subprocess.check_call(
+        [sys.executable, "-m", "pip", "install", "xlsxwriter", "pandas", "requests"],
+        shell=False
+    )  # nosec B603
 
 from pathlib import Path
 

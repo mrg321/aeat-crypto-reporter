@@ -66,31 +66,7 @@ Para mantener la persistencia de los datos, el proyecto debe estar alojado en tu
    - `Proyecto_Crypto_Reporter/data/inputs/` (Tu archivo CSV de Kraken)
 
 ### 2. Abrir en Colab
-Crea un nuevo cuaderno (.ipynb) en Colab y ejecuta las siguientes celdas:
-
-**Paso A: Montar Drive y Configurar Rutas**
-```python
-from google.colab import drive
-import os
-import sys
-
-# Esto abrirá una ventana pidiéndote permiso para acceder a tus archivos
-drive.mount('/content/drive')
-
-# Cambiamos el directorio de trabajo a tu carpeta del proyecto
-# Asegúrate de que el nombre coincida exactamente con la carpeta que creaste
-os.chdir('/content/drive/MyDrive/Proyecto_Crypto_Reporter')
-
-# Verificamos que estamos en el sitio correcto
-print("Directorio actual:", os.getcwd())
-!ls
-
-# Añadimos la carpeta /app a la lista de sitios donde Python busca archivos
-sys.path.append(os.path.abspath('./app'))
-
-# Ahora se ejecuta main dentro de /app
-!python app/main.py
-```
+Abre el cuaderno notebook.ipynb en Colab y sigue las instrucciones.
 
 ## 🛡️ Compromiso de Seguridad Total
 

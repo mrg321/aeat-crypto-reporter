@@ -136,7 +136,7 @@ def calcular_fifo(archivo_entrada, archivo_salida):
     tipos_reales = ['trade', 'spend', 'receive', 'staking', 'earn', 'dividend', 'withdrawal', 'deposit', 'transfer']
 
     # 2. Lista de subtipos que son solo MOVIMIENTOS (Añadimos allocation)
-    subtipos_neutros = ['transfer', 'allocation', 'deallocation', 'autoallocation', 'settled', 'migration']
+    subtipos_neutros = ['transfer', 'allocation', 'deallocation', 'autoallocation', 'settled', 'migration', 'delistingconversion']
 
     saldo_eur_tracker = 0.0  # Variable para el seguimiento de caja
 
@@ -145,6 +145,11 @@ def calcular_fifo(archivo_entrada, archivo_salida):
         #tipos_validos = ['trade', 'spend', 'receive', 'staking', 'earn', 'dividend', 'transfer']
         operaciones = grupo[grupo['type'].isin(tipos_reales)]
         
+        print(f"\n🔍 Procesando RefID: {refid} | Cantidad de filas: {len(operaciones)}")
+        if refid in ['ELCXSZS-BAQRW-AWOOM6']:
+            print("DEBUG: Detalle completo del grupo problemático:")
+            print(operaciones.to_string(index=False))
+
         if operaciones.empty:
             continue
 
@@ -208,8 +213,11 @@ def calcular_fifo(archivo_entrada, archivo_salida):
             # ---------- DETECCIÓN DE MOVIMIENTOS CIRCULARES -------------
             # Sumamos el balance neto del activo normalizado en este RefID
             balance_neto_refid = operaciones[operaciones['asset'].apply(normalizar_activo) == asset]['amount'].sum()
+
+            # Sumamos el balance neto de todos los activos normalizados en este RefID
+            balance_neto_refid_total = operaciones['amount'].sum()
             
-            if abs(balance_neto_refid) < TOLERANCIA_DUST and subtipo in subtipos_neutros:
+            if abs(balance_neto_refid_total) < TOLERANCIA_DUST and subtipo in subtipos_neutros:
                 # Si el neto es 0 y es un movimiento (ej. ETH -> ETH.S), no hacemos NADA.
                 # De esta forma el lote original en la cola no se toca.
                 df.at[idx, 'ganancia_fifo'] = 0.0

@@ -54,13 +54,18 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     # Ganancias que no derivan de una venta previa
     airdrops = df_year[
         (df_year['asset'] != 'EUR') & 
-        (df_year['type'].isin(['airdrop', 'bonus']))
+        ((df_year['type'] == 'earn') & (df_year['subtype'].isin(['airdrop', 'bonus']))) &
+        (~df_year['FIFO_calculation'].str.contains('Neutral movement', na=False))
     ].copy()
     reporte_airdrops = airdrops[['time', 'asset', 'amount', 'amount_eur', 'fee', 'fee_eur', 'refid']]
 
     # --- 3. RENDIMIENTOS CAPITAL MOBILIARIO (Staking, Intereses) ---
     # Rentas del ahorro
-    rendimientos = df_year[df_year['type'].isin(['staking', 'earn', 'dividend', 'lending'])].copy()
+    rendimientos = df_year[
+        (df_year['type'].isin(['staking', 'earn', 'dividend', 'lending'])) &
+        (~df_year['FIFO_calculation'].str.contains('Neutral movement', na=False)) &
+        (~df_year['subtype'].isin(['airdrop', 'bonus']))  # Excluir airdrops que ya se cuentan en el punto 2
+    ].copy()
     reporte_rendimientos = rendimientos[['time', 'asset', 'amount', 'amount_eur', 'fee', 'fee_eur', 'type', 'refid']]
 
     # --- 4. BALANCES (1 Ene y 31 Dic) ---

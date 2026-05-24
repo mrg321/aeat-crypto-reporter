@@ -7,6 +7,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
@@ -16,5 +18,4 @@ jobs:
           python -m pip install --upgrade pip
           pip install pylint pandas requests xlsxwriter
       - name: Analizar con Pylint
-        # Fallará si la puntuación es muy baja, asegurando calidad
         run: pylint $(git ls-files '*.py') --fail-under=5.0

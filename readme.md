@@ -7,6 +7,7 @@
 ![Dependencies](https://img.shields.io/badge/dependencies-up--to--date-brightgreen)
 
 Este proyecto es una solución limitada para el procesamiento de archivos **Ledger de Kraken**, permitiendo la conversión de precios a Euros (EUR), el cálculo de ganancias/pérdidas patrimoniales mediante el método **FIFO** y la generación de un **informe fiscal** detallado para la AEAT (España).
+Adicionalmente se permite la entrada en el formato **export de BittyTax** [BittyTax - Github](https://github.com/BittyTax/BittyTax) que soporta una larga lista de exchanges y wallets.
 
 
 ## 🚀 Funcionalidades Principales
@@ -24,6 +25,7 @@ Este proyecto es una solución limitada para el procesamiento de archivos **Ledg
 2.  **`EUR_Converter_pro.py`**: Traduce el ledger original a EUR. Gestiona operaciones complejas multi-pata y asigna un ID secuencial de orden.
 3.  **`FIFO_calculator.py`**: El motor contable. Gestiona las colas `deque` por activo, calcula las ganancias y genera un estado de inventario histórico (`.pkl`).
 4.  **`Fiscal_Reporter_ES.py`**: Generador de informes. Clasifica cada operación en su casilla fiscal correspondiente y crea el Excel final.
+5. **`bittytax2kraken.py`**: Transforma el formato `BittyTax --export` en un formato similar al de Kraken para permitir entradas desde otros exchanges y wallets.
 
 ## ☑️ Requisitos SW
 
@@ -46,7 +48,7 @@ Este proyecto es una solución limitada para el procesamiento de archivos **Ledg
     ```
 
 ###  *Configurar Datos:*
-    - Extrae tu informe ledger completo (desde tu alta en la plataforma) de Kraken y cópialo en /data/inputs
+    - Extrae tu informe ledger completo (desde tu alta en la plataforma) de Kraken (o el fichero obtenido desde BittyTax --export) y cópialo en /data/inputs
 
 ## 📋 Ejemplo de Uso en Local
 

@@ -123,12 +123,143 @@ Este software es una herramienta de apoyo y consulta basada en la interpretació
 * Añadir texto al informe Fiscal con la ubicación en el programa Renta de los importes a rellenar e instrucciones de cómo hacerlo.
 * Implementar sistema híbrido de caché para no tener que consultar siempre al API de Kraken.
 * Añadir al cálculo FIFO los fees de las ganancias por staking. Cada comisión es como una pequeña salida o venta.
-* Refactorizar para permitir el formato de entrada genérico de bittytax, que ya preprocesa Kraken y otros muchos ledgers y les añade los precios (cuidado aquí con los earn/airdrops que los descarta).
-
 
 ---
 
 # 📄 Licencia
+
+MIT License
+
+---
+
+# English Version
+
+# Kraken Tax & FIFO Calculator (Spain Edition)
+
+[![Bandit](https://github.com/mrg321/aeat-crypto-reporter/actions/workflows/bandit.yml/badge.svg)](https://github.com/mrg321/aeat-crypto-reporter/actions/workflows/bandit.yml)
+[![Code Quality](https://github.com/mrg321/aeat-crypto-reporter/actions/workflows/linting.yml/badge.svg)](https://github.com/mrg321/aeat-crypto-reporter/actions/workflows/linting.yml)
+[![CodeQL Advanced](https://github.com/mrg321/aeat-crypto-reporter/actions/workflows/codeql.yml/badge.svg)](https://github.com/mrg321/aeat-crypto-reporter/actions/workflows/codeql.yml)
+![Dependencies](https://img.shields.io/badge/dependencies-up--to--date-brightgreen)
+
+This project is a limited solution for processing **Kraken Ledger** files, enabling price conversion to euros (EUR), capital gains/losses calculation using the **FIFO** method, and generation of a detailed **tax report** for the AEAT (Spain).
+Additionally, input is supported in the **BittyTax export** format [BittyTax - GitHub](https://github.com/BittyTax/BittyTax), which supports a long list of exchanges and wallets.
+
+## 🚀 Main Features
+
+*   **Currency Conversion:** Automatic retrieval of historical prices through the Kraken API for each transaction.
+*   **Staking Handling:** Detection of staking movements (normalization of assets such as `ETH` and `ETH.S`) to avoid breaking the holding period of FIFO lots.
+*   **Fee Management:** Integration of fees into the acquisition cost and reduction of the disposal value, according to tax rules.
+*   **Data Integrity:** Absolute ordering through `orden_original` to ensure the calculation respects the exact ledger sequence.
+*   **Balance Validation:** Final reconciliation of FIFO queues against the official balances reported by the exchange.
+*   **Spanish Tax Report:** Excel export with specific tabs for Trading, Airdrops/Income, and opening/closing yearly balances.
+
+## 📁 Project Structure
+
+1.  **`main.py`**: Pipeline orchestrator. Controls the flow and avoids reprocessing the conversion if the file already exists.
+2.  **`EUR_Converter_pro.py`**: Translates the original ledger into EUR. Handles complex multi-leg operations and assigns a sequential order ID.
+3.  **`FIFO_calculator.py`**: The accounting engine. Manages `deque` queues by asset, calculates gains, and generates a historical inventory state (`.pkl`).
+4.  **`Fiscal_Reporter_ES.py`**: Report generator. Classifies each operation into its corresponding tax box and creates the final Excel file.
+5.  **`bittytax2kraken.py`**: Transforms the `BittyTax --export` format into a Kraken-like format to support input from other exchanges and wallets.
+
+## ☑️ Software Requirements
+
+- Python 3.12.10 or higher (https://www.python.org/downloads/)
+- Git (for example, git version 2.53.0.windows.2) (https://git-scm.com/install/windows)
+
+## 🛠️ Installation
+
+###  *Clone and prepare the environment:*
+    ```bash
+    git clone <repository>
+    cd <repository>
+    python -m venv venv
+    source venv/bin/activate  # venv\Scripts\activate or .\venv\Scripts\Activate.ps1 on Windows
+    ```
+
+###  *Install dependencies:*
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+###  *Configure data:*
+    - Export your complete ledger report from Kraken (from the date you joined the platform), or use the file obtained from BittyTax --export, and copy it to /data/inputs
+
+## 📋 Local Usage Example
+
+```python
+python ./app/main.py
+```
+
+## 🚀 Running in Google Colab
+
+If you prefer not to configure a local environment, you can run this project in the cloud using Google Colab. Follow these steps:
+
+### 1. Preparation in Google Drive
+To keep data persistent, the project must be hosted in your Drive:
+1. Upload the project root folder (`Proyecto_Crypto_Reporter`) to your Google Drive.
+2. Make sure the following structure is preserved:
+   - `Proyecto_Crypto_Reporter/app/` (.py scripts)
+   - `Proyecto_Crypto_Reporter/data/inputs/` (your Kraken CSV file)
+
+### 2. Open in Colab
+Open the notebook.ipynb notebook in Colab and follow the instructions.
+
+## 🛡️ Full Security Commitment
+
+### Your data is not uploaded to GitHub
+
+The `.gitignore` file is configured to protect your privacy:
+- It **ignores** the contents of `data/inputs/`, `data/temp`, and `data/outputs/` so your data is not uploaded to GitHub.
+- It **preserves** the folder structure thanks to the `.gitkeep` files.
+
+### Audit Status
+
+- Vulnerability Scanning: Audited against code injection and data leaks.
+
+- Advanced Static Analysis: GitHub security engine that verifies the code logic.
+
+- Software Quality: Compliance with professional Python programming standards.
+
+### Known vulnerability mitigation
+
+- No Private Keys (API Keys): The script does NOT request your API keys. It only uses queries to Kraken public endpoints to obtain historical market prices. Your funds are never at risk.
+- 100% Local or Controlled Cloud Execution: Your transaction data (ledgers.csv) is processed on your own machine or in your private Google Colab instance, if you prefer even more security. No personal information is sent to external servers.
+- No suspicious libraries such as Pickle are used. Inventory files are human-readable JSON and 100% safe.
+- Protected Connections: All API calls include timeouts and error handling to avoid hangs and ensure system stability.
+- All system calls (such as dependency installation in Google Colab) are performed without using the system shell (shell=False) and with static arguments, preventing injection attacks.
+- The project includes automatic Dependabot scans to ensure that all libraries used (Pandas, Requests, etc.) are up to date and free of known vulnerabilities.
+
+## ⚠️ Limitations and Important Notices (Caveats)
+
+This project is in an early development phase (Beta). Before using the reports for official purposes, please keep the following in mind:
+
+- Testing Scope: The calculation engine has been validated with a very small dataset (based on the real ledgers of only two users and a limited range of cryptoassets). Therefore, there are likely scenarios or operation types that are not yet covered.
+
+- Need for Testing: Volunteers willing to test the tool with different types of wallets and report possible discrepancies are welcome. If you find an error, opening an Issue in this repository is the best way to help.
+
+- Reliability of Ledger Balances: The balance information included in CSV files downloaded from Kraken has been found not always to update in real time, and it may contain inconsistencies after certain complex operations (such as staking or internal transfers).
+
+- Mandatory Manual Reconciliation: Because of the above, the balance reconciliation function may often report errors. Users must verify final balances on key dates (such as December 31) by comparing the script results directly with the information shown in the Kraken.com web interface.
+
+- Disclaimer: This tool is provided "as is", for informational purposes and as calculation support. It does not constitute tax or legal advice. The user is solely responsible for the accuracy of the data submitted to the tax authorities.
+
+## ⚠️ Legal Notice
+
+This software is a support and consultation tool based on an interpretation of current law. Final calculations must always be validated by the user and have no contractual or legal value.
+👉 Always review with a tax advisor.
+
+---
+
+# 🧠 Suggested Future Improvements
+
+* Separate the outgoing principal amount and the fee for that disposal in order to calculate 2 FIFO costs independently. In addition, the price at which the fee leaves should be the API-calculated price, instead of the price calculated by comparison with the other leg.
+* Add text to the tax report indicating where the relevant amounts should be entered in the Spanish income tax program, together with instructions on how to do it.
+* Implement a hybrid cache system to avoid always querying the Kraken API.
+* Add fees from staking rewards to the FIFO calculation. Each fee is like a small disposal or sale.
+
+---
+
+# 📄 License
 
 MIT License
 

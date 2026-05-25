@@ -2,6 +2,7 @@
 # EURconverter_pro.py
 # -*- coding: utf-8 -*-
 
+from anyio import Path
 import pandas as pd
 import requests
 from datetime import datetime
@@ -10,7 +11,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import time
 from functools import wraps
-from Core import ARCHIVO_ENTRADA
+from Core import ARCHIVO_ENTRADA, format_float_output
 
 def retry_api_call(max_retries=3, delay=30):
     """Decorador para gestionar reintentos en llamadas a la API de Kraken"""
@@ -158,7 +159,8 @@ def procesar_ledger(archivo_entrada, archivo_salida):
     df['fee_eur'] = 0.0
     df['tasa'] = 0.0
     df['EUR_conversion'] = ''
-    df['legs_subclasses'] = ''
+    if 'legs_subclasses' not in df.columns:
+        df['legs_subclasses'] = ''
 
     print(f"🚀 Procesando {len(df)} filas...")
 
@@ -190,8 +192,10 @@ def procesar_ledger(archivo_entrada, archivo_salida):
         for indice in grupo.index:
             fila = df.loc[indice]
             asset = fila['asset']
-            
-            df.at[indice, 'legs_subclasses'] = legs_subclasses
+
+            legs_subclasses_actual = fila.get('legs_subclasses')
+            if pd.isna(legs_subclasses_actual) or str(legs_subclasses_actual).strip().lower() in ('', 'nan'):
+                df.at[indice, 'legs_subclasses'] = legs_subclasses
             # Caso 1: La fila es el propio EUR
             if asset == 'EUR':
                 df.at[indice, 'amount_eur'] = fila['amount']
@@ -253,8 +257,13 @@ def procesar_ledger(archivo_entrada, archivo_salida):
     
     # Al guardar, NO ordenes por tiempo, guarda según el orden_original
     df = df.sort_values('orden_original')
-    df.to_csv(archivo_salida, index=False)
+    df.to_csv(archivo_salida, index=False, float_format=format_float_output)
     print(f"\n✨ Proceso finalizado. Archivo guardado: {archivo_salida}")
 
 if __name__ == "__main__":
-    procesar_ledger(ARCHIVO_ENTRADA, ARCHIVO_ENTRADA.replace('inputs', 'temp').replace('.csv', '_converted_pro.csv'))
+    archivo_original = ARCHIVO_ENTRADA
+    if "BittyTax" in archivo_original:
+        archivo_intermedio = archivo_original.replace('inputs', 'temp').replace('.csv', '_converted_from_bittytax.csv')
+    else:
+        archivo_intermedio = archivo_original
+    procesar_ledger(archivo_intermedio, archivo_intermedio.replace('.csv', '_converted_pro.csv'))

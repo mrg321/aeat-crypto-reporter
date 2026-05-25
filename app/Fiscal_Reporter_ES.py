@@ -6,7 +6,9 @@ import pandas as pd
 import json
 from datetime import datetime
 
-from Core import ARCHIVO_ENTRADA, TOLERANCIA_DUST
+from Core import AIRDROP_SUBTYPES_KRAKEN, ARCHIVO_ENTRADA, RENDIMIENTOS_REPORT_TYPES_KRAKEN
+from Core import RENDIMIENTOS_REPORT_TYPES_KRAKEN, TOLERANCIA_DUST, TRADING_REPORT_TYPES_KRAKEN
+from Core import TRADING_REPORT_TYPES_BITTYTAX, AIRDROP_TYPES_BITTYTAX, RENDIMIENTOS_REPORT_TYPES_BITTYTAX
 
 def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     if anio_fiscal is None:
@@ -16,6 +18,12 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     
     df = pd.read_csv(archivo_fifo)
     df['time'] = pd.to_datetime(df['time'])
+
+    # Excel does not support datetimes with timezones. 
+    # Ensure all datetime columns are timezone-unaware.
+    for col in df.select_dtypes(include=['datetime64[ns, UTC]', 'datetimetz']).columns:
+        df[col] = df[col].dt.tz_localize(None)
+    
     
     # Filtrar datos del año solicitado
     df_year = df[df['time'].dt.year == anio_fiscal].copy()
@@ -23,16 +31,15 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     # --- 1. TRADING (Transmisión/Permuta) ---
     # Solo ventas/trades con ganancia/pérdida calculada
     trading = df_year[
-        #(df_year['asset'] != 'EUR') & 
-        (df_year['type'].isin(['trade', 'spend'])) & 
+        (df_year['type'].isin(TRADING_REPORT_TYPES_KRAKEN) | df_year['type'].isin(TRADING_REPORT_TYPES_BITTYTAX)) & 
         (df_year['amount'] < 0)
     ].copy()
     
-    trading['Fecha de transmisión'] = trading['time'].dt.date
+    trading['Fecha de transmisión'] = trading['time'].dt.normalize()
     trading['Fecha de adquisición'] = pd.to_datetime(
         trading['FIFO_calculation'].str.extract(r'fecha\s+(\d{4}-\d{2}-\d{2})')[0],
         errors='coerce'
-    ).dt.date
+    )
     #trading['Valor de adquisicion bruto'] = trading['Valor de adquisicion']
     #trading['Valor de adquisicion'] = trading['Valor de adquisicion'] - trading['fee_eur']
     trading['Gastos de transmision'] = trading['fee_eur']
@@ -54,7 +61,8 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     # Ganancias que no derivan de una venta previa
     airdrops = df_year[
         (df_year['asset'] != 'EUR') & 
-        ((df_year['type'] == 'earn') & (df_year['subtype'].isin(['airdrop', 'bonus']))) &
+        ((df_year['type'] == 'earn') & (df_year['subtype'].isin(AIRDROP_SUBTYPES_KRAKEN)) |
+         (df_year['type'].isin(AIRDROP_TYPES_BITTYTAX))) &
         (~df_year['FIFO_calculation'].str.contains('Neutral movement', na=False))
     ].copy()
     reporte_airdrops = airdrops[['time', 'asset', 'amount', 'amount_eur', 'fee', 'fee_eur', 'refid']]
@@ -62,14 +70,15 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     # --- 3. RENDIMIENTOS CAPITAL MOBILIARIO (Staking, Intereses) ---
     # Rentas del ahorro
     rendimientos = df_year[
-        (df_year['type'].isin(['staking', 'earn', 'dividend', 'lending'])) &
+        (df_year['type'].isin(RENDIMIENTOS_REPORT_TYPES_KRAKEN) |
+         df_year['type'].isin(RENDIMIENTOS_REPORT_TYPES_BITTYTAX)) &
         (~df_year['FIFO_calculation'].str.contains('Neutral movement', na=False)) &
-        (~df_year['subtype'].isin(['airdrop', 'bonus']))  # Excluir airdrops que ya se cuentan en el punto 2
+        (~df_year['subtype'].isin(AIRDROP_SUBTYPES_KRAKEN))  # Excluir airdrops que ya se cuentan en el punto 2
     ].copy()
     reporte_rendimientos = rendimientos[['time', 'asset', 'amount', 'amount_eur', 'fee', 'fee_eur', 'type', 'refid']]
 
     # --- 4. BALANCES (1 Ene y 31 Dic) ---
-    archivo_inventarios = archivo_fifo.replace('_FIFO.csv', '_inventarios_fifo.json')
+    archivo_inventarios = archivo_fifo.replace('_converted_pro_FIFO.csv', '_inventarios_fifo.json')
     try:
         with open(archivo_inventarios, 'r') as f:
             inventarios = json.load(f)
@@ -180,6 +189,11 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
 
 if __name__ == "__main__":
     # Ajustar nombres de ficheros según tu configuración
-    generar_informe_fiscal(ARCHIVO_ENTRADA.replace('inputs', 'temp').replace('.csv', '_FIFO.csv'), 
+    archivo_original = ARCHIVO_ENTRADA
+    if "BittyTax" in archivo_original:
+        archivo_entrada = archivo_original.replace('inputs', 'temp').replace('.csv', '_converted_from_bittytax_converted_pro_FIFO.csv')
+    else:
+        archivo_entrada = archivo_original.replace('inputs', 'temp').replace('.csv', '_converted_pro_FIFO.csv')
+    generar_informe_fiscal(archivo_entrada, 
                            anio_fiscal=2025, 
-                           informe_fiscal=ARCHIVO_ENTRADA.replace('inputs', 'outputs').replace('.csv', '_Informe_Fiscal'))
+                           informe_fiscal=archivo_original.replace('inputs', 'outputs').replace('.csv', '_Informe_Fiscal'))

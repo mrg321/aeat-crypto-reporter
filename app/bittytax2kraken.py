@@ -1,5 +1,7 @@
 import os
 import pandas as pd
+from Core import ARCHIVO_ENTRADA, format_float_output, TIPOS_ENTRADA_BITTYTAX as TIPOS_ENTRADA
+from Core import TIPOS_SALIDA_BITTYTAX as TIPOS_SALIDA
 
 
 def determinar_wallet(asset):
@@ -20,6 +22,29 @@ def calcular_tasa(amount_eur, amount):
         return 0.0
 
 
+def normalizar_numero(valor):
+    """Convierte valores nulos o no numericos a 0.0."""
+    try:
+        valor_numerico = pd.to_numeric(valor, errors="coerce")
+        if pd.isna(valor_numerico):
+            return 0.0
+        return float(valor_numerico)
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def normalizar_timestamp_bittytax(timestamp):
+    """Convierte timestamps BittyTax con zona horaria al formato Kraken."""
+    if pd.isna(timestamp) or str(timestamp).strip() == "":
+        return ""
+
+    fecha = pd.to_datetime(timestamp, utc=True, errors="coerce")
+    if pd.isna(fecha):
+        return str(timestamp).strip()
+
+    return fecha.strftime("%Y-%m-%d %H:%M:%S")
+
+
 def convertir_bittytax_a_kraken(archivo_entrada, archivo_salida):
     """Convierte un CSV exportado de BittyTax al formato de Kraken."""
     df_in = pd.read_csv(archivo_entrada)
@@ -29,44 +54,9 @@ def convertir_bittytax_a_kraken(archivo_entrada, archivo_salida):
     txid_counter = 1
     refid_counter = 1
 
-    # Clasificación de tipos basada en regla 3.1.4
-    tipos_entrada = {
-        "Deposit",
-        "Unstake",
-        "Mining",
-        "Staking-Reward",
-        "Staking*",
-        "Interest",
-        "Dividend",
-        "Income",
-        "Gift-Received",
-        "Fork",
-        "Airdrop",
-        "Referral",
-        "Cashback",
-        "Fee-Rebate",
-        "Loan",
-        "Margin-Gain",
-        "Margin-Fee-Rebate",
-    }
-
-    tipos_salida = {
-        "Withdrawal",
-        "Stake",
-        "Spend",
-        "Gift-Sent",
-        "Gift-Spouse",
-        "Charity-Sent",
-        "Lost",
-        "Loan-Repayment",
-        "Loan-Interest",
-        "Margin-Loss",
-        "Margin-Fee",
-    }
-
     for _, row in df_in.iterrows():
         b_type = str(row.get("Type", "")).strip()
-        timestamp = row.get("Timestamp", "")
+        timestamp = normalizar_timestamp_bittytax(row.get("Timestamp", ""))
 
         # --- REGLA 3.1.1: TRADE (Doble Pata) ---
         if b_type == "Trade":
@@ -90,13 +80,13 @@ def convertir_bittytax_a_kraken(archivo_entrada, archivo_salida):
                     "asset": buy_asset,
                     "wallet": wallet_buy,
                     "amount": abs(float(buy_amt)) if buy_amt else 0,
-                    "fee": row.get("Fee Quantity", 0)
+                    "fee": normalizar_numero(row.get("Fee Quantity", 0))
                     if row.get("Fee Asset") == buy_asset
                     else 0,
-                    "balance": "",
+                    "balance": 0,
                     "orden_original": "",
                     "amount_eur": abs(float(buy_val_eur)) if buy_val_eur else 0,
-                    "fee_eur": row.get("Fee Value", 0)
+                    "fee_eur": normalizar_numero(row.get("Fee Value", 0))
                     if row.get("Fee Asset") == buy_asset
                     else 0,
                     "tasa": calcular_tasa(buy_val_eur, buy_amt),
@@ -123,15 +113,15 @@ def convertir_bittytax_a_kraken(archivo_entrada, archivo_salida):
                     "asset": sell_asset,
                     "wallet": wallet_sell,
                     "amount": -abs(float(sell_amt)) if sell_amt else 0,
-                    "fee": row.get("Fee Quantity", 0)
+                    "fee": normalizar_numero(row.get("Fee Quantity", 0))
                     if row.get("Fee Asset") == sell_asset
                     else 0,
-                    "balance": "",
+                    "balance": 0,
                     "orden_original": "",
                     "amount_eur": -abs(float(sell_val_eur))
                     if sell_val_eur
                     else 0,
-                    "fee_eur": row.get("Fee Value", 0)
+                    "fee_eur": normalizar_numero(row.get("Fee Value", 0))
                     if row.get("Fee Asset") == sell_asset
                     else 0,
                     "tasa": calcular_tasa(sell_val_eur, sell_amt),
@@ -144,12 +134,19 @@ def convertir_bittytax_a_kraken(archivo_entrada, archivo_salida):
             refid_counter += 1
 
         # --- REGLA 3.1.2: ENTRADAS DE ACTIVOS (1 Pata Positiva - Columnas Buy) ---
-        elif b_type in tipos_entrada:
+        elif b_type in TIPOS_ENTRADA:
             buy_asset = row.get("Buy Asset", "")
             if pd.notna(buy_asset) and str(buy_asset).strip() != "":
                 buy_amt = row.get("Buy Quantity", 0)
                 buy_val_eur = row.get("Buy Value", 0)
                 w_type = determinar_wallet(buy_asset)
+                amount = abs(float(buy_amt)) if buy_amt else 0
+                amount_eur = abs(float(buy_val_eur)) if buy_val_eur else 0
+                tasa = calcular_tasa(buy_val_eur, buy_amt)
+
+                if b_type == "Deposit" and str(buy_asset).strip().upper() == "EUR":
+                    amount_eur = amount
+                    tasa = 1.0
 
                 pata_entrada = {
                     "txid": f"TX{txid_counter:06d}",
@@ -161,13 +158,13 @@ def convertir_bittytax_a_kraken(archivo_entrada, archivo_salida):
                     "subclass": "",
                     "asset": buy_asset,
                     "wallet": w_type,
-                    "amount": abs(float(buy_amt)) if buy_amt else 0,
-                    "fee": row.get("Fee Quantity", 0),
-                    "balance": "",
+                    "amount": amount,
+                    "fee": normalizar_numero(row.get("Fee Quantity", 0)),
+                    "balance": 0,
                     "orden_original": "",
-                    "amount_eur": abs(float(buy_val_eur)) if buy_val_eur else 0,
-                    "fee_eur": row.get("Fee Value", 0),
-                    "tasa": calcular_tasa(buy_val_eur, buy_amt),
+                    "amount_eur": amount_eur,
+                    "fee_eur": normalizar_numero(row.get("Fee Value", 0)),
+                    "tasa": tasa,
                     "EUR_conversion": "Imported from bittytax export",
                     "legs_subclasses": w_type,
                 }
@@ -176,7 +173,7 @@ def convertir_bittytax_a_kraken(archivo_entrada, archivo_salida):
                 refid_counter += 1
 
         # --- REGLA 3.1.3: SALIDAS DE ACTIVOS (1 Pata Negativa - Columnas Sell) ---
-        elif b_type in tipos_salida:
+        elif b_type in TIPOS_SALIDA:
             sell_asset = row.get("Sell Asset", "")
             if pd.notna(sell_asset) and str(sell_asset).strip() != "":
                 sell_amt = row.get("Sell Quantity", 0)
@@ -194,13 +191,13 @@ def convertir_bittytax_a_kraken(archivo_entrada, archivo_salida):
                     "asset": sell_asset,
                     "wallet": w_type,
                     "amount": -abs(float(sell_amt)) if sell_amt else 0,
-                    "fee": row.get("Fee Quantity", 0),
-                    "balance": "",
+                    "fee": normalizar_numero(row.get("Fee Quantity", 0)),
+                    "balance": 0,
                     "orden_original": "",
                     "amount_eur": -abs(float(sell_val_eur))
                     if sell_val_eur
                     else 0,
-                    "fee_eur": row.get("Fee Value", 0),
+                    "fee_eur": normalizar_numero(row.get("Fee Value", 0)),
                     "tasa": calcular_tasa(sell_val_eur, sell_amt),
                     "EUR_conversion": "Imported from bittytax export",
                     "legs_subclasses": w_type,
@@ -241,14 +238,14 @@ def convertir_bittytax_a_kraken(archivo_entrada, archivo_salida):
     # Asegurar que la carpeta destino existe antes de escribir
     #os.makedirs("/data/temp", exist_ok=True)
 
-    df_out.to_csv(archivo_salida, index=False)
+    df_out.to_csv(archivo_salida, index=False, float_format=format_float_output)
     print(f"📊 Conversión finalizada.")
     print(f"💾 Guardado en: {archivo_salida}")
 
 
 if __name__ == "__main__":
     # Nombre del archivo que debe estar dentro de /data/inputs
-    archivo_original = 'data/inputs/MRG_BittyTax_Export.csv'
+    archivo_original = ARCHIVO_ENTRADA
     archivo_salida = archivo_original.replace('inputs', 'temp').replace('.csv', '_converted_from_bittytax.csv')
     convertir_bittytax_a_kraken(archivo_original, archivo_salida)
     

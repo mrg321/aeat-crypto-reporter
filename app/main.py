@@ -7,11 +7,13 @@ from datetime import datetime
 
 # Importamos los módulos (asegúrate de que los nombres de archivo coincidan)
 import EURconverter_pro as converter
+import bittytax2kraken as bittytax_converter
 import FIFO_calculator as calculator
 import Fiscal_Reporter_ES as reporter
 import sys
 import subprocess  # nosec B404
-from Core import ARCHIVO_ENTRADA, IN_COLAB
+import pandas as pd
+from Core import ARCHIVO_ENTRADA, IN_COLAB, recognize_csv_format
 
 # --- INSTALACIÓN AUTOMÁTICA EN COLAB ---
 if IN_COLAB:
@@ -24,15 +26,27 @@ if IN_COLAB:
 
 from pathlib import Path
 
+
+def detect_input_format(archivo_entrada):
+    if not os.path.exists(archivo_entrada):
+        raise FileNotFoundError(f"No se encuentra el origen '{archivo_entrada}'.")
+
+    columns = pd.read_csv(archivo_entrada, nrows=0).columns
+    csv_format = recognize_csv_format(columns)
+    if csv_format == "unknown":
+        raise ValueError(
+            f"Formato CSV no reconocido para '{archivo_entrada}'. "
+            "Se esperaba formato Kraken o BittyTax."
+        )
+    return csv_format
+
+
 def orchestrator(archivo_entrada=ARCHIVO_ENTRADA, anio_a_reportar=None):
     # --- CONFIGURACIÓN DE RUTAS ---
     archivo_original = Path(archivo_entrada)
-    #archivo_convertido = archivo_entrada.replace('inputs', 'temp').replace('.csv', '_converted_pro.csv')
-    #archivo_fifo = archivo_entrada.replace('inputs', 'temp').replace('.csv', '_FIFO.csv')
-    #informe_fiscal = archivo_entrada.replace('inputs', 'outputs').replace('.csv', '_Informe_Fiscal')
-
-    archivo_convertido = str(archivo_original.parents[1] / "temp" / f"{archivo_original.stem}_converted_pro.csv")
-    archivo_fifo = str(archivo_original.parents[1] / "temp" / f"{archivo_original.stem}_FIFO.csv")
+    archivo_convertido_1paso = str(archivo_original.parents[1] / "temp" / f"{archivo_original.stem}_converted_pro.csv")
+    archivo_convertido_2pasos_paso1 = str(archivo_original.parents[1] / "temp" / f"{archivo_original.stem}_converted_from_bittytax.csv")
+    archivo_convertido_2pasos_paso2 = str(archivo_original.parents[1] / "temp" / f"{archivo_original.stem}_converted_from_bittytax_converted_pro.csv")
     informe_fiscal = str(archivo_original.parents[1] / "outputs" / f"{archivo_original.stem}_Informe_Fiscal")
 
     # Definir año fiscal (por defecto el año pasado)
@@ -48,26 +62,42 @@ def orchestrator(archivo_entrada=ARCHIVO_ENTRADA, anio_a_reportar=None):
 
     print("🚀 Iniciando Pipeline Contable de Criptoactivos...")
 
+    formato_entrada = detect_input_format(archivo_original)
+    print(f"Formato detectado: {formato_entrada}")
+
     try:
         # --- PASO 1: CONVERSIÓN (SALTAR SI YA EXISTE) ---
         print("\n--- PASO 1: Conversión de Precios y Normalización ---")
         
-        if os.path.exists(archivo_convertido):
-            print(f"⏩ El archivo '{archivo_convertido}' ya existe. Saltando conversión para ahorrar tiempo.")
-        else:
+        if os.path.exists(archivo_convertido_1paso):
+            print(f"⏩ El archivo '{archivo_convertido_1paso}' ya existe. Saltando conversión para ahorrar tiempo.")
+        elif os.path.exists(archivo_convertido_2pasos_paso2):
+            print(f"⏩ El archivo '{archivo_convertido_2pasos_paso2}' ya existe. Saltando primera parte de conversión BittyTax.")
+            archivo_convertido_1paso = archivo_convertido_2pasos_paso2  # Para que el siguiente paso use el resultado correcto
+        elif formato_entrada == "kraken":
             if not os.path.exists(archivo_original):
                 print(f"❌ Error crítico: No se encuentra el origen '{archivo_original}'.")
                 return
             
             print(f"⏳ Procesando conversión (esto puede tardar por las llamadas a API)...")
-            converter.procesar_ledger(archivo_original, archivo_convertido)
-            print(f"✅ Conversión finalizada y guardada en '{archivo_convertido}'.")
+            converter.procesar_ledger(archivo_original, archivo_convertido_1paso)
+            print(f"Conversion Kraken finalizada y guardada en '{archivo_convertido_1paso}'.")
+        elif formato_entrada == "bittytax":
+            print("Convirtiendo BittyTax a formato Kraken...")
+            bittytax_converter.convertir_bittytax_a_kraken(archivo_original, archivo_convertido_2pasos_paso1)
+            print(f"✅ Conversión finalizada y guardada en '{archivo_convertido_2pasos_paso2}'.")
+            print(f"⏳ Procesando conversión (esto puede tardar por las llamadas a API)...")
+            converter.procesar_ledger(archivo_convertido_2pasos_paso1, archivo_convertido_2pasos_paso2)
+            print(f"✅ Conversión finalizada y guardada en '{archivo_convertido_2pasos_paso2}'.")
+            archivo_convertido_1paso = archivo_convertido_2pasos_paso2  # Para que el siguiente paso use el resultado correcto
         
+        archivo_fifo = archivo_convertido_1paso.replace('.csv', '_FIFO.csv')
+
         # --- PASO 2: CÁLCULO FIFO ---
         # Este paso suele ser rápido, pero si quieres saltarlo también, 
         # podrías aplicar la misma lógica de os.path.exists(archivo_fifo)
         print("\n--- PASO 2: Cálculo de Ganancias FIFO ---")
-        calculator.calcular_fifo(archivo_convertido, archivo_fifo)
+        calculator.calcular_fifo(archivo_convertido_1paso, archivo_fifo)
         
         # --- PASO 3: INFORME FISCAL ---
         print(f"\n--- PASO 3: Generación de Informe Fiscal {anio_a_reportar} ---")

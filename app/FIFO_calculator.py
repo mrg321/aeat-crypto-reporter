@@ -8,7 +8,8 @@ import json
 from collections import deque
 
 # Configuración de precisión
-from Core import PRECISION_CRIPTOS, TOLERANCIA_DUST, ARCHIVO_ENTRADA
+from Core import PRECISION_CRIPTOS, TIPOS_NEUTROS_BITTYTAX, TIPOS_REALES_BITTYTAX, TIPOS_REALES_KRAKEN
+from Core import TOLERANCIA_DUST, ARCHIVO_ENTRADA, format_float_output
 
 # Antes de guardar, convertimos el diccionario a uno "JSON-friendly"
 def serializar_inventarios(obj):
@@ -90,7 +91,7 @@ def realizar_validacion_final(colas, balances_referencia_kraken):
             status = "❌ ERROR"
             errores_encontrados += 1
         
-        print(f"{asset_norm:<10} | FIFO: {saldo_fifo:>12.8f} | Kraken: {saldo_kraken_total:>12.8f} | Dif: {discrepancia:>12.8f} | {status}")
+        print(f"{asset_norm:<10} | FIFO: {saldo_fifo:>12.8f} | Entrada: {saldo_kraken_total:>12.8f} | Dif: {discrepancia:>12.8f} | {status}")
 
     print("="*50)
     if errores_encontrados == 0:
@@ -132,18 +133,19 @@ def calcular_fifo(archivo_entrada, archivo_salida):
 
     print(f"🧮 Iniciando cálculo FIFO sobre {len(df)} registros...")
 
-    # 1. Lista de tipos que SÍ generan ganancia o coste
-    tipos_reales = ['trade', 'spend', 'receive', 'staking', 'earn', 'dividend', 'withdrawal', 'deposit', 'transfer']
+    # Mapeo de tipos válidos
+    tipos_reales_bittytax = {tipo.lower() for tipo in TIPOS_REALES_BITTYTAX}
+    tipos_reales_kraken = set(TIPOS_REALES_KRAKEN)
 
-    # 2. Lista de subtipos que son solo MOVIMIENTOS (Añadimos allocation)
-    subtipos_neutros = ['transfer', 'allocation', 'deallocation', 'autoallocation', 'settled', 'migration', 'delistingconversion']
+    # 2. Lista de subtipos que son solo MOVIMIENTOS
+    subtipos_neutros_kraken = ['transfer', 'allocation', 'deallocation', 'autoallocation', 'settled', 'migration', 'delistingconversion']
+    tipos_neutros_bittytax = {tipo.lower() for tipo in TIPOS_NEUTROS_BITTYTAX}
 
     saldo_eur_tracker = 0.0  # Variable para el seguimiento de caja
 
     for refid, grupo in grupos:
         # Tipos que consideramos operaciones de movimiento de valor
-        #tipos_validos = ['trade', 'spend', 'receive', 'staking', 'earn', 'dividend', 'transfer']
-        operaciones = grupo[grupo['type'].isin(tipos_reales)]
+        operaciones = grupo[grupo['type'].isin(tipos_reales_kraken) | grupo['type'].str.lower().isin(tipos_reales_bittytax)]
         
         print(f"\n🔍 Procesando RefID: {refid} | Cantidad de filas: {len(operaciones)}")
         if refid in ['ELCXSZS-BAQRW-AWOOM6']:
@@ -169,7 +171,7 @@ def calcular_fifo(archivo_entrada, archivo_salida):
             balances_referencia_kraken[asset_original] = balance_actual
 
             tipo = fila['type']
-            if tipo == 'spend':
+            if tipo.lower() == 'spend':
                 print(f"🔻 [{fila['time']}] SPEND DETECTADO | {fila['asset']} | Ref: {refid}")
 
             subtipo = fila['subtype']
@@ -217,7 +219,7 @@ def calcular_fifo(archivo_entrada, archivo_salida):
             # Sumamos el balance neto de todos los activos normalizados en este RefID
             balance_neto_refid_total = operaciones['amount'].sum()
             
-            if abs(balance_neto_refid_total) < TOLERANCIA_DUST and subtipo in subtipos_neutros:
+            if abs(balance_neto_refid_total) < TOLERANCIA_DUST and (subtipo in subtipos_neutros_kraken or str(tipo).lower() in tipos_neutros_bittytax):
                 # Si el neto es 0 y es un movimiento (ej. ETH -> ETH.S), no hacemos NADA.
                 # De esta forma el lote original en la cola no se toca.
                 df.at[idx, 'ganancia_fifo'] = 0.0
@@ -258,7 +260,7 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                 cantidad_total_a_salir = round(abs(amount), PRECISION_CRIPTOS) + fee_en_este_asset
                 # CASO B.1: MOVIMIENTOS NEUTROS (Allocation, Transfer)
                 # Solo ajustamos inventario, ganancia siempre 0.
-                if subtipo in subtipos_neutros:
+                if subtipo in subtipos_neutros_kraken or str(tipo).lower() in tipos_neutros_bittytax:
                     # Ajuste de inventario sin ganancia
                     cantidad_a_procesar = cantidad_total_a_salir
                     while cantidad_a_procesar > TOLERANCIA_DUST and colas[asset]:
@@ -389,8 +391,13 @@ def calcular_fifo(archivo_entrada, archivo_salida):
     print(f"📦 Inventarios anuales guardados en: {archivo_inventarios}")
 
     # Guardado
-    df.to_csv(archivo_salida, index=False)
+    df.to_csv(archivo_salida, index=False, float_format=format_float_output)
     print(f"\n✅ FIFO completado con éxito. Archivo: {archivo_salida}")
 
 if __name__ == "__main__":
-    calcular_fifo(ARCHIVO_ENTRADA.replace('inputs', 'temp').replace('.csv', '_converted_pro.csv'), ARCHIVO_ENTRADA.replace('inputs', 'temp').replace('.csv', '_FIFO.csv'))
+    archivo_original = ARCHIVO_ENTRADA
+    if "BittyTax" in archivo_original:
+        archivo_entrada = archivo_original.replace('inputs', 'temp').replace('.csv', '_converted_from_bittytax_converted_pro.csv')
+    else:
+        archivo_entrada = archivo_original.replace('inputs', 'temp').replace('.csv', '_converted_pro.csv')
+    calcular_fifo(archivo_entrada, archivo_entrada.replace('inputs', 'temp').replace('.csv', '_FIFO.csv'))

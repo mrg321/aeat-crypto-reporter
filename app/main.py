@@ -68,6 +68,7 @@ def orchestrator(archivo_entrada=ARCHIVO_ENTRADA, anio_a_reportar=None):
     try:
         # --- PASO 1: CONVERSIÓN (SALTAR SI YA EXISTE) ---
         print("\n--- PASO 1: Conversión de Precios y Normalización ---")
+        sabor = None
         
         if os.path.exists(archivo_convertido_1paso):
             print(f"⏩ El archivo '{archivo_convertido_1paso}' ya existe. Saltando conversión para ahorrar tiempo.")
@@ -82,6 +83,7 @@ def orchestrator(archivo_entrada=ARCHIVO_ENTRADA, anio_a_reportar=None):
             print(f"⏳ Procesando conversión (esto puede tardar por las llamadas a API)...")
             converter.procesar_ledger(archivo_original, archivo_convertido_1paso)
             print(f"Conversion Kraken finalizada y guardada en '{archivo_convertido_1paso}'.")
+            sabor = 'kraken'
         elif formato_entrada == "bittytax":
             print("Convirtiendo BittyTax a formato Kraken...")
             bittytax_converter.convertir_bittytax_a_kraken(archivo_original, archivo_convertido_2pasos_paso1)
@@ -90,18 +92,18 @@ def orchestrator(archivo_entrada=ARCHIVO_ENTRADA, anio_a_reportar=None):
             converter.procesar_ledger(archivo_convertido_2pasos_paso1, archivo_convertido_2pasos_paso2)
             print(f"✅ Conversión finalizada y guardada en '{archivo_convertido_2pasos_paso2}'.")
             archivo_convertido_1paso = archivo_convertido_2pasos_paso2  # Para que el siguiente paso use el resultado correcto
-        
+            sabor = 'bittytax'
         archivo_fifo = archivo_convertido_1paso.replace('.csv', '_FIFO.csv')
 
         # --- PASO 2: CÁLCULO FIFO ---
         # Este paso suele ser rápido, pero si quieres saltarlo también, 
         # podrías aplicar la misma lógica de os.path.exists(archivo_fifo)
         print("\n--- PASO 2: Cálculo de Ganancias FIFO ---")
-        calculator.calcular_fifo(archivo_convertido_1paso, archivo_fifo)
+        calculator.calcular_fifo(archivo_convertido_1paso, archivo_fifo, sabor)
         
         # --- PASO 3: INFORME FISCAL ---
         print(f"\n--- PASO 3: Generación de Informe Fiscal {anio_a_reportar} ---")
-        # El reporter necesita el CSV del FIFO y el archivo .pkl generado en el Paso 2
+        # El reporter necesita el CSV del FIFO y el archivo .json generado en el Paso 2
         reporter.generar_informe_fiscal(archivo_fifo, anio_fiscal=anio_a_reportar, informe_fiscal=informe_fiscal)
 
         print("\n" + "="*40)

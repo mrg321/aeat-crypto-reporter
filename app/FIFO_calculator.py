@@ -92,7 +92,7 @@ def realizar_validacion_final(colas, balances_referencia_kraken):
         print(f"⚠️ Alerta: Se han encontrado {errores_encontrados} discrepancias.")
     print("="*50 + "\n")
 
-def calcular_fifo(archivo_entrada, archivo_salida):
+def calcular_fifo(archivo_entrada, archivo_salida, sabor):
     # 1. Carga de datos
     df = pd.read_csv(archivo_entrada)
     df['asset'] = df['asset'].apply(normalizar_activo)
@@ -252,7 +252,7 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                 cantidad_total_a_salir = round(abs(amount), PRECISION_CRIPTOS) + fee_en_este_asset
                 # CASO B.1: MOVIMIENTOS NEUTROS (Allocation, Transfer)
                 # Solo ajustamos inventario, ganancia siempre 0.
-                if subtipo in subtipos_neutros_kraken or str(tipo).lower() in tipos_neutros_bittytax:
+                if (subtipo in subtipos_neutros_kraken and sabor == 'kraken') or (str(tipo).lower() in tipos_neutros_bittytax and sabor == 'bittytax'):
                     # Ajuste de inventario sin ganancia
                     cantidad_a_procesar = cantidad_total_a_salir
                     while cantidad_a_procesar > TOLERANCIA_DUST and colas[asset]:

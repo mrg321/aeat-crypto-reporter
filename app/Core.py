@@ -3,10 +3,11 @@
 # -*- coding: utf-8 -*-
 
 import os
+import re
 import pandas as pd
 
 # --- CONFIGURACIÓN DE PRECISIÓN Y SALIDA ---
-ARCHIVO_ENTRADA = 'data/inputs/MRG_BittyTax_Export.csv'
+ARCHIVO_ENTRADA = 'data/inputs/NCCkraken_stocks_etfs_ledgers_2021-05-02-2026-04-24.csv'
 PRECISION_CRIPTOS = 10
 TOLERANCIA_DUST = 1e-7  # Kraken a veces tiene pequeñas discrepancias
 PRECISION_SALIDA_CSV = 14  # Decimales máximos a conservar en archivos CSV de salida
@@ -150,6 +151,18 @@ def format_float_output(x):
     # Remover ceros al final pero mantener al menos el número entero
     s = s.rstrip('0').rstrip('.')
     return s
+
+
+def normalizar_activo(asset):
+    """Normaliza codigos de activos usados por Kraken."""
+    if pd.isna(asset):
+        return asset
+
+    asset = str(asset).strip().upper()
+    asset = asset.split('.')[0]  # Kraken a menudo tiene sufijos de clase (ej. DOT.2, USDT.3)
+    match = re.fullmatch(r"([A-Z]+)\d{2}", asset)
+
+    return match.group(1) if match else asset
 
 # --- FILTROS PARA INFORME FISCAL (Fiscal_Reporter_ES) ---
 # Tipos de transacción para cada categoría de reporte fiscal

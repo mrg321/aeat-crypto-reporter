@@ -9,7 +9,7 @@ from collections import deque
 
 # Configuración de precisión
 from Core import PRECISION_CRIPTOS, TIPOS_NEUTROS_BITTYTAX, TIPOS_REALES_BITTYTAX, TIPOS_REALES_KRAKEN
-from Core import TOLERANCIA_DUST, ARCHIVO_ENTRADA, format_float_output
+from Core import TOLERANCIA_DUST, ARCHIVO_ENTRADA, format_float_output, normalizar_activo
 
 # Antes de guardar, convertimos el diccionario a uno "JSON-friendly"
 def serializar_inventarios(obj):
@@ -20,14 +20,6 @@ def serializar_inventarios(obj):
     if isinstance(obj, list):
         return [serializar_inventarios(i) for i in obj]
     return obj
-
-def normalizar_activo(asset):
-    if pd.isna(asset): return asset
-    sufijos = ['.S', '.M', '.P', '.2']
-    for sufijo in sufijos:
-        if asset.endswith(sufijo):
-            return asset.replace(sufijo, '')
-    return asset
 
 def obtener_balance_total_colas(colas):
     """
@@ -103,8 +95,8 @@ def realizar_validacion_final(colas, balances_referencia_kraken):
 def calcular_fifo(archivo_entrada, archivo_salida):
     # 1. Carga de datos
     df = pd.read_csv(archivo_entrada)
-    df['time'] = pd.to_datetime(df['time'])
-    # Orden cronológico estricto
+    df['asset'] = df['asset'].apply(normalizar_activo)
+    df['time'] = pd.to_datetime(df['time'])    # Orden cronológico estricto
     #df = df.sort_values(['time', 'refid']).reset_index(drop=True)
     
     # FORZAR EL ORDEN ORIGINAL DEL ARCHIVO DE KRAKEN
@@ -175,7 +167,7 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                 print(f"🔻 [{fila['time']}] SPEND DETECTADO | {fila['asset']} | Ref: {refid}")
 
             subtipo = fila['subtype']
-            asset = normalizar_activo(fila['asset'])
+            asset = fila['asset']
             amount = fila['amount']
             fee_eur = abs(fila['fee_eur'])
 
@@ -200,9 +192,9 @@ def calcular_fifo(archivo_entrada, archivo_salida):
                 #print(f"💵 [{fila['time']}] USD DETECTADO | Ref: {refid} | Tipo: {tipo} | Subtipo: {subtipo} | Cantidad: {amount}")
                 #print(f"DEBUG | Saldo acumulado de USD: {debug_fiat_balance(colas)} $")
                 pass
-            elif asset == 'BTC':
-                #print(f"₿ [{fila['time']}] BTC DETECTADO | Ref: {refid} | Tipo: {tipo} | Subtipo: {subtipo} | Cantidad: {amount}")
-                #print(f"DEBUG | Saldo acumulado de BTC: {obtener_balance_cola(colas, 'BTC')} BTC | Ref: {refid}")
+            elif asset == 'ETHW':
+                print(f"₿ [{fila['time']}] ETHW DETECTADO | Ref: {refid} | Tipo: {tipo} | Subtipo: {subtipo} | Cantidad: {amount}")
+                print(f"DEBUG | Saldo acumulado de ETHW: {obtener_balance_cola(colas, 'ETHW')} ETHW | Ref: {refid}")
                 pass
 
             if asset not in colas:

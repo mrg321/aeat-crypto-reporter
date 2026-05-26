@@ -11,7 +11,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import time
 from functools import wraps
-from Core import ARCHIVO_ENTRADA, format_float_output
+from Core import ARCHIVO_ENTRADA, format_float_output, normalizar_activo
 
 def retry_api_call(max_retries=3, delay=30):
     """Decorador para gestionar reintentos en llamadas a la API de Kraken"""
@@ -109,11 +109,14 @@ class KrakenConverter:
     def obtener_tasa_conversion(self, asset, fecha):
         """Lógica con fallback y búsqueda exacta por altname/pair_id"""
         # Cortocircuito EUR a EUR
-        asset_base = asset.split('.')[0].upper()
+        #asset_base = asset.split('.')[0].upper()
+
+        #asset_base = normalizar_activo(asset)
+        asset_base = asset
 
         # Traducción de MATIC a POL por la migración
-        if asset_base == 'MATIC':
-            asset_base = 'POL'
+        #if asset_base == 'MATIC':
+        #   asset_base = 'POL'
         
         if asset_base == 'EUR': return 1.0
         # Fallback por colapso del activo LUNA (Si el activo es LUNA2, devolvemos 0.0 directamente)
@@ -146,6 +149,7 @@ class KrakenConverter:
 def procesar_ledger(archivo_entrada, archivo_salida):
     converter = KrakenConverter()
     df = pd.read_csv(archivo_entrada)
+    df['asset'] = df['asset'].apply(normalizar_activo)
 
     # CREACIÓN DEL ÍNDICE DE ORDEN ORIGINAL
     # Usamos el índice actual (que es el orden del archivo) como una columna fija
@@ -262,8 +266,11 @@ def procesar_ledger(archivo_entrada, archivo_salida):
 
 if __name__ == "__main__":
     archivo_original = ARCHIVO_ENTRADA
+    archivo_salida = ''
     if "BittyTax" in archivo_original:
         archivo_intermedio = archivo_original.replace('inputs', 'temp').replace('.csv', '_converted_from_bittytax.csv')
+        archivo_salida = archivo_intermedio.replace('.csv', '_converted_pro.csv')
     else:
         archivo_intermedio = archivo_original
-    procesar_ledger(archivo_intermedio, archivo_intermedio.replace('.csv', '_converted_pro.csv'))
+        archivo_salida = archivo_original.replace('inputs', 'temp').replace('.csv', '_converted_pro.csv')
+    procesar_ledger(archivo_intermedio, archivo_salida)

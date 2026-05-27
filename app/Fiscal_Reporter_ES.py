@@ -27,13 +27,28 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     
     # Filtrar datos del año solicitado
     df_year = df[df['time'].dt.year == anio_fiscal].copy()
+
+    fee_disposals = df_year[
+        df_year['FIFO_calculation'].str.contains('Fee FIFO sale', na=False)
+    ].copy()
+    if not fee_disposals.empty:
+        fee_disposals['amount'] = -fee_disposals['fee'].abs()
+        fee_disposals['amount_eur'] = -fee_disposals['fee_eur'].abs()
+        fee_disposals['fee_eur'] = 0.0
+        fee_disposals['type'] = 'fee_disposal'
+        if 'legs_subclasses' in fee_disposals.columns:
+            fee_disposals['legs_subclasses'] = fee_disposals['legs_subclasses'].fillna('fee_disposal')
+        fee_disposals['FIFO_calculation'] = fee_disposals['FIFO_calculation'].str.extract(
+            r'(Fee FIFO sale:.*)'
+        )[0].fillna(fee_disposals['FIFO_calculation'])
     
     # --- 1. TRADING (Transmisión/Permuta) ---
     # Solo ventas/trades con ganancia/pérdida calculada
     trading = df_year[
-        (df_year['type'].isin(TRADING_REPORT_TYPES_KRAKEN) | df_year['type'].isin(TRADING_REPORT_TYPES_BITTYTAX)) & 
+        (df_year['type'].isin(TRADING_REPORT_TYPES_KRAKEN) | df_year['type'].isin(TRADING_REPORT_TYPES_BITTYTAX)) &
         (df_year['amount'] < 0)
     ].copy()
+    trading = pd.concat([trading, fee_disposals], ignore_index=True)
     
     trading['Fecha de transmisión'] = trading['time'].dt.normalize()
     trading['Fecha de adquisición'] = pd.to_datetime(

@@ -1,11 +1,11 @@
 # Manipulación y análisis de datos
-pandas>=2.0.0
+pandas>=3.0.3,<4
 
 # Motor para la creación de informes Excel con formato (AEAT)
-xlsxwriter>=3.1.0
+xlsxwriter>=3.2.9,<4
 
 # Cliente HTTP para consultas de precios a la API de Kraken
-requests>=2.31.0
+requests>=2.34.2,<3
 
 # Gestión de fechas y tiempos (incluido en la librería estándar, 
 # pero pandas requiere soporte de zona horaria en algunos sistemas)
@@ -13,3 +13,6 @@ python-dateutil>=2.8.2
 
 # Motor opcional para lectura de archivos Excel si fuera necesario
 openpyxl>=3.1.2
+
+# Requerido por requests para manejar conexiones HTTP
+urllib3>=2.7.0,<3

@@ -2,7 +2,6 @@
 # EURconverter_pro.py
 # -*- coding: utf-8 -*-
 
-from anyio import Path
 import pandas as pd
 import requests
 from datetime import datetime

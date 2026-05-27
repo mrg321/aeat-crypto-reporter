@@ -122,7 +122,6 @@ Este software es una herramienta de apoyo y consulta basada en la interpretació
 * Separar la salida de la cantidad principal y la comisión de esa salida para calcular 2 costes FIFO por separado. Además, el precio al que sale la comisión debería ser el del cálculo API, en vez del calculado comparando con la otra pata.
 * Añadir texto al informe Fiscal con la ubicación en el programa Renta de los importes a rellenar e instrucciones de cómo hacerlo.
 * Implementar sistema híbrido de caché para no tener que consultar siempre al API de Kraken.
-* Añadir al cálculo FIFO los fees de las ganancias por staking. Cada comisión es como una pequeña salida o venta.
 
 ---
 
@@ -255,7 +254,6 @@ This software is a support and consultation tool based on an interpretation of c
 * Separate the outgoing principal amount and the fee for that disposal in order to calculate 2 FIFO costs independently. In addition, the price at which the fee leaves should be the API-calculated price, instead of the price calculated by comparison with the other leg.
 * Add text to the tax report indicating where the relevant amounts should be entered in the Spanish income tax program, together with instructions on how to do it.
 * Implement a hybrid cache system to avoid always querying the Kraken API.
-* Add fees from staking rewards to the FIFO calculation. Each fee is like a small disposal or sale.
 
 ---
 

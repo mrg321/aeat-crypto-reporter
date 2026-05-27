@@ -9,7 +9,7 @@ requests>=2.34.2,<3
 
 # Gestión de fechas y tiempos (incluido en la librería estándar, 
 # pero pandas requiere soporte de zona horaria en algunos sistemas)
-python-dateutil>=2.8.2
+python-dateutil>=2.9.0.post0
 
 # Motor opcional para lectura de archivos Excel si fuera necesario
 openpyxl>=3.1.2

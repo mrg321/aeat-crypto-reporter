@@ -204,6 +204,18 @@ RENDIMIENTOS_REPORT_TYPES_BITTYTAX = [
 
 RENDIMIENTOS_REPORT_TYPES_KRAKEN = ['staking', 'earn', 'dividend', 'lending', 'reward']  # Rendimientos del capital mobiliario
 
+TIPOS_ENTRADA_FEE_COMO_DISPOSICION = {
+    *{tipo.lower() for tipo in RENDIMIENTOS_REPORT_TYPES_KRAKEN},
+    *{
+        tipo.lower()
+        for tipo in TIPOS_ENTRADA_BITTYTAX
+        if tipo not in {"Deposit", "Unstake", "Loan", "Margin-Gain"}
+    },
+    # Kraken "receive" entries can include fees that should be treated as a
+    # separate FIFO disposal instead of an acquisition cost.
+    "receive",
+}
+
 # Detectar si estamos en Google Colab
 try:
     import google.colab

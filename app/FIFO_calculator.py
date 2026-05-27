@@ -10,7 +10,8 @@ from collections import deque
 # Configuración de precisión
 from Core import KRAKEN_CIRCULAR_MOVEMENT_MAX_SECONDS, KRAKEN_CIRCULAR_MOVEMENT_TYPE
 from Core import KRAKEN_SPOT_STAKING_CIRCULAR_SUBTYPES, PRECISION_CRIPTOS
-from Core import TIPOS_NEUTROS_BITTYTAX, TIPOS_REALES_BITTYTAX, TIPOS_REALES_KRAKEN
+from Core import TIPOS_ENTRADA_FEE_COMO_DISPOSICION, TIPOS_NEUTROS_BITTYTAX
+from Core import TIPOS_REALES_BITTYTAX, TIPOS_REALES_KRAKEN
 from Core import TOLERANCIA_DUST, ARCHIVO_ENTRADA, format_float_output, normalizar_activo
 
 # Antes de guardar, convertimos el diccionario a uno "JSON-friendly"
@@ -237,13 +238,6 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
     # Mapeo de tipos válidos
     tipos_reales_bittytax = {tipo.lower() for tipo in TIPOS_REALES_BITTYTAX}
     tipos_reales_kraken = set(TIPOS_REALES_KRAKEN)
-    tipos_entrada_con_fee_fifo = {
-        'staking', 'earn', 'reward', 'dividend', 'lending',
-        'mining', 'staking-reward', 'staking*', 'interest', 'income',
-        'referral', 'cashback', 'fee-rebate', 'margin-fee-rebate',
-        'airdrop', 'fork', 'gift-received', 'receive'
-    }
-
     # 2. Lista de subtipos que son solo MOVIMIENTOS
     subtipos_neutros_kraken = ['transfer', 'allocation', 'deallocation', 'autoallocation', 'settled', 'migration', 'delistingconversion']
     tipos_neutros_bittytax = {tipo.lower() for tipo in TIPOS_NEUTROS_BITTYTAX}
@@ -356,7 +350,7 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
                 saldo_anterior_cola = obtener_balance_cola(colas, asset)
                 base_coste = abs(fila['amount_eur'])
                 fee_en_este_asset = abs(fila['fee']) if fila['asset'] == asset else 0
-                es_entrada_con_fee_fifo = str(tipo).lower() in tipos_entrada_con_fee_fifo
+                es_entrada_con_fee_fifo = str(tipo).lower() in TIPOS_ENTRADA_FEE_COMO_DISPOSICION
                 cantidad_entrada = amount if es_entrada_con_fee_fifo else amount - fee_en_este_asset
                 coste_total = base_coste if es_entrada_con_fee_fifo else base_coste + fee_eur
                 coste_unitario = coste_total / amount

@@ -8,7 +8,9 @@ import json
 from collections import deque
 
 # Configuración de precisión
-from Core import PRECISION_CRIPTOS, TIPOS_NEUTROS_BITTYTAX, TIPOS_REALES_BITTYTAX, TIPOS_REALES_KRAKEN
+from Core import KRAKEN_CIRCULAR_MOVEMENT_MAX_SECONDS, KRAKEN_CIRCULAR_MOVEMENT_TYPE
+from Core import KRAKEN_SPOT_STAKING_CIRCULAR_SUBTYPES, PRECISION_CRIPTOS
+from Core import TIPOS_NEUTROS_BITTYTAX, TIPOS_REALES_BITTYTAX, TIPOS_REALES_KRAKEN
 from Core import TOLERANCIA_DUST, ARCHIVO_ENTRADA, format_float_output, normalizar_activo
 
 # Antes de guardar, convertimos el diccionario a uno "JSON-friendly"
@@ -89,13 +91,69 @@ def consumir_fifo(colas, asset, cantidad_total_a_salir, precio_venta_unitario):
 
 def formatear_detalle_lotes(lotes_consumidos):
     return ', '.join(
-        f"{l['cantidad']:.6f}@{l['coste_unitario']:.4f}EUR (valor original {l['valor_original']:.4f}EUR, fecha {l['fecha'].strftime('%Y-%m-%d')}, fee_compra {l['fee_compra']:.4f}EUR)"
+        f"{l['cantidad']:.8f}@{l['coste_unitario']:.4f}EUR (valor original {l['valor_original']:.4f}EUR, fecha {l['fecha'].strftime('%Y-%m-%d')}, fee_compra {l['fee_compra']:.4f}EUR)"
         for l in lotes_consumidos
     )
 
-def realizar_validacion_final(colas, balances_referencia_kraken):
+def identificar_movimientos_circulares_kraken_staking(df):
+    """
+    Detecta transferencias internas Spot <-> Staking que Kraken registra con RefID
+    distintos pero como dos patas opuestas en una ventana temporal corta.
+    """
+    candidatos = df[
+        (df['type'].astype(str).str.lower() == KRAKEN_CIRCULAR_MOVEMENT_TYPE)
+        & (
+            df['subtype']
+            .astype(str)
+            .str.lower()
+            .isin(KRAKEN_SPOT_STAKING_CIRCULAR_SUBTYPES)
+        )
+        & (df['amount'].abs() > TOLERANCIA_DUST)
+    ].copy()
+
+    indices_circulares = set()
+    if candidatos.empty:
+        return indices_circulares
+
+    candidatos['asset_normalizado'] = candidatos['asset'].apply(normalizar_activo)
+    candidatos['subtype_normalizado'] = candidatos['subtype'].astype(str).str.lower()
+    candidatos = candidatos.sort_values('time')
+
+    for idx, fila in candidatos.iterrows():
+        if idx in indices_circulares:
+            continue
+
+        diferencia_tiempo = (candidatos['time'] - fila['time']).abs().dt.total_seconds()
+        diferencia_amount = (candidatos['amount'] + fila['amount']).abs()
+        pareja = candidatos[
+            (candidatos.index != idx)
+            & (~candidatos.index.isin(indices_circulares))
+            & (candidatos['asset_normalizado'] == fila['asset_normalizado'])
+            & (candidatos['subtype_normalizado'] != fila['subtype_normalizado'])
+            & (diferencia_tiempo <= KRAKEN_CIRCULAR_MOVEMENT_MAX_SECONDS)
+            & (diferencia_amount <= TOLERANCIA_DUST)
+        ]
+
+        if pareja.empty:
+            continue
+
+        idx_pareja = pareja.assign(
+            diferencia_tiempo=diferencia_tiempo.loc[pareja.index]
+        ).sort_values('diferencia_tiempo').index[0]
+        indices_circulares.update({idx, idx_pareja})
+
+    return indices_circulares
+
+def realizar_validacion_final(colas, balances_referencia_kraken, fecha_ultimo_movimiento=None):
     print("\n" + "="*50)
     print("RECONCILIACIÓN FINAL DE BALANCES (Normalizados)")
+    if fecha_ultimo_movimiento is not None:
+        print(f"Fecha del último movimiento procesado: {fecha_ultimo_movimiento}")
+    print(
+        "Aviso: estos saldos deben reconciliarse contra los saldos de tu exchange "
+        "en esa fecha. La información de balance del archivo de entrada puede ser "
+        "inexacta, especialmente en Kraken."
+    )
     print("="*50)
     
     # Obtenemos todos los activos únicos normalizados que hay en las colas
@@ -151,6 +209,7 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
 
     # Este diccionario guardará: {'Asset_Tag': Ultimo_Balance_Visto}
     balances_referencia_kraken = {}
+    fecha_ultimo_movimiento_balance = None
 
     # Este diccionario guardará los inventarios anuales para cada activo, por si queremos hacer análisis posteriores
     inventarios_anuales = {} # {año: {asset: [lista_de_lotes]}}
@@ -164,8 +223,16 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
     
     # 2. Agrupamos para identificar patas FIAT (ventas directas a EUR)
     grupos = df.groupby('refid', sort=False)
+    indices_circulares_kraken_staking = (
+        identificar_movimientos_circulares_kraken_staking(df) if sabor == 'kraken' else set()
+    )
 
     print(f"🧮 Iniciando cálculo FIFO sobre {len(df)} registros...")
+    if indices_circulares_kraken_staking:
+        print(
+            f"🔄 Detectadas {len(indices_circulares_kraken_staking)} patas Spot/Staking "
+            "de Kraken como movimientos circulares."
+        )
 
     # Mapeo de tipos válidos
     tipos_reales_bittytax = {tipo.lower() for tipo in TIPOS_REALES_BITTYTAX}
@@ -174,7 +241,7 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
         'staking', 'earn', 'reward', 'dividend', 'lending',
         'mining', 'staking-reward', 'staking*', 'interest', 'income',
         'referral', 'cashback', 'fee-rebate', 'margin-fee-rebate',
-        'airdrop', 'fork', 'gift-received'
+        'airdrop', 'fork', 'gift-received', 'receive'
     }
 
     # 2. Lista de subtipos que son solo MOVIMIENTOS
@@ -209,6 +276,7 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
             # --- ACTUALIZACIÓN AQUÍ ---
             # Sobreescribimos siempre: el último valor es el que cuenta como saldo final
             balances_referencia_kraken[asset_original] = balance_actual
+            fecha_ultimo_movimiento_balance = fila['time']
 
             tipo = fila['type']
             if tipo.lower() == 'spend':
@@ -240,9 +308,9 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
                 #print(f"💵 [{fila['time']}] USD DETECTADO | Ref: {refid} | Tipo: {tipo} | Subtipo: {subtipo} | Cantidad: {amount}")
                 #print(f"DEBUG | Saldo acumulado de USD: {debug_fiat_balance(colas)} $")
                 pass
-            elif normalizar_activo(asset) == 'DOT':
-                print(f"₿ [{fila['time']}] DOT DETECTADO | Ref: {refid} | Tipo: {tipo} | Subtipo: {subtipo} | Cantidad: {amount}")
-                print(f"DEBUG | Saldo acumulado de DOT: {obtener_balance_cola(colas, 'DOT')} DOT | Ref: {refid}")
+            elif normalizar_activo(asset) == 'BTC':
+                print(f"₿ [{fila['time']}] BTC DETECTADO | Ref: {refid} | Tipo: {tipo} | Subtipo: {subtipo} | Cantidad: {amount} | Saldo en Kraken: {balance_actual:.8f} BTC")
+                print(f"DEBUG | Saldo acumulado de BTC: {obtener_balance_cola(colas, 'BTC')} BTC | Ref: {refid}")
                 pass
 
             if asset not in colas:
@@ -259,11 +327,26 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
             # Sumamos el balance neto de todos los activos normalizados en este RefID
             balance_neto_refid_total = operaciones['amount'].sum()
             
-            if abs(balance_neto_refid_total) < TOLERANCIA_DUST and (subtipo in subtipos_neutros_kraken or str(tipo).lower() in tipos_neutros_bittytax):
+            es_movimiento_circular_mismo_refid = (
+                abs(balance_neto_refid_total) < TOLERANCIA_DUST
+                and (
+                    str(subtipo).lower() in subtipos_neutros_kraken
+                    or str(tipo).lower() in tipos_neutros_bittytax
+                )
+            )
+            es_movimiento_circular_kraken_staking = idx in indices_circulares_kraken_staking
+
+            if es_movimiento_circular_mismo_refid or es_movimiento_circular_kraken_staking:
                 # Si el neto es 0 y es un movimiento (ej. ETH -> ETH.S), no hacemos NADA.
                 # De esta forma el lote original en la cola no se toca.
                 df.at[idx, 'ganancia_fifo'] = 0.0
-                df.at[idx, 'FIFO_calculation'] = 'Neutral movement: no FIFO calculation performed, gain set to 0'
+                if es_movimiento_circular_kraken_staking:
+                    df.at[idx, 'FIFO_calculation'] = (
+                        'Kraken Spot/Staking circular movement: no FIFO calculation performed, '
+                        'gain set to 0'
+                    )
+                else:
+                    df.at[idx, 'FIFO_calculation'] = 'Neutral movement: no FIFO calculation performed, gain set to 0'
                 if amount < 0:
                     print(f"🔄 [{fila['time']}] BYPASS (Interno) | {asset} | Conservando coste original | Ref: {refid}")
                 continue
@@ -284,17 +367,19 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
                     'fecha': fila['time'],
                     'fee_compra': 0.0 if es_entrada_con_fee_fifo else fee_eur
                 })
-                #print(f"📥 [{fila['time']}] +{amount:.6f} {asset} | Coste: {coste_total:.2f}€ | Ref: {refid}")
+                #print(f"📥 [{fila['time']}] +{amount:.8f} {asset} | Coste: {coste_total:.2f}€ | Ref: {refid}")
 
-                df.at[idx, 'FIFO_calculation'] = f'Entry: added {cantidad_entrada:.6f} {asset} to FIFO queue with unit cost {coste_unitario:.4f} EUR, no gain calculated'
+                df.at[idx, 'FIFO_calculation'] = f'Entry: added {cantidad_entrada:.8f} {asset} to FIFO queue with unit cost {coste_unitario:.4f} EUR, no gain calculated'
                 df.at[idx, 'fee_eur_compras'] = 0.0 if es_entrada_con_fee_fifo else fee_eur
 
                 if es_entrada_con_fee_fifo and fee_en_este_asset > TOLERANCIA_DUST:
                     valor_transmision_fee = fee_eur
                     precio_venta_unitario_fee = valor_transmision_fee / fee_en_este_asset
+                    print(f"📥 [{fila['time']}] FEE FIFO SALE DETECTADO | {asset} | {fee_en_este_asset:.8f} as fee | Ref: {refid} | Precio unitario para fee: {precio_venta_unitario_fee:.4f} EUR | Saldo en colas antes de procesar fee: {obtener_balance_cola(colas, asset):.8f} {asset} | balance kraken: {balance_actual:.8f} {asset}")
                     ganancia_fee, lotes_fee, pendiente_fee = consumir_fifo(
                         colas, asset, fee_en_este_asset, precio_venta_unitario_fee
                     )
+                    print(f"📥 [{fila['time']}] FEE FIFO SALE | {asset} | {fee_en_este_asset:.8f} as fee | Ref: {refid} | Saldo en colas después de procesar fee: {obtener_balance_cola(colas, asset):.8f} {asset} | balance kraken: {balance_actual:.8f} {asset}")
 
                     if pendiente_fee > 1e-5:
                         df.at[idx, 'FIFO_calculation'] += (
@@ -305,7 +390,7 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
                     else:
                         detalle_lotes_fee = formatear_detalle_lotes(lotes_fee)
                         df.at[idx, 'FIFO_calculation'] += (
-                            f'; Fee FIFO sale: sold {fee_en_este_asset:.6f} {asset} as fee '
+                            f'; Fee FIFO sale: sold {fee_en_este_asset:.8f} {asset} as fee '
                             f'at unit price {precio_venta_unitario_fee:.4f} EUR; '
                             f'gain=sum((sale_price-cost_price)*qty); consumed lots: {detalle_lotes_fee}'
                         )
@@ -315,9 +400,9 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
                         df.at[idx, 'fee_eur_compras'] = sum(l['fee_compra'] for l in lotes_fee)
 
                 if str(tipo).lower() in ['staking', 'earn', 'reward', 'dividend', 'lending']:
-                    print(f"📥 [{fila['time']}] RECOMPENSA | {asset} | +{amount:.6f} | Ref: {refid}")
+                    print(f"📥 [{fila['time']}] RECOMPENSA | {asset} | +{amount:.8f} | Ref: {refid}")
                 else:
-                    print(f"📥 [{fila['time']}] ENTRADA    | {asset} | +{amount:.6f} | Ref: {refid} | Saldo anterior en colas: {saldo_anterior_cola}")
+                    print(f"📥 [{fila['time']}] ENTRADA    | {asset} | +{amount:.8f} | Ref: {refid} | Saldo anterior en colas: {saldo_anterior_cola}")
 
             # --- LÓGICA B: SALIDAS (Ventas, Permutas, Retiros) ---
             elif amount < 0:
@@ -343,8 +428,8 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
                             lote['cantidad'] = round(lote['cantidad'] - cantidad_a_procesar, PRECISION_CRIPTOS)
                             cantidad_a_procesar = 0
                     df.at[idx, 'ganancia_fifo'] = 0.0
-                    df.at[idx, 'FIFO_calculation'] = f'Neutral movement: adjusted inventory by removing {cantidad_total_a_salir:.6f} {asset} from FIFO queue, gain set to 0'
-                    print(f"🔄 [{fila['time']}] MOVIMIENTO | {asset} | -{abs(amount):.6f} | Ganancia: 0.00€ | Ref: {refid}")
+                    df.at[idx, 'FIFO_calculation'] = f'Neutral movement: adjusted inventory by removing {cantidad_total_a_salir:.8f} {asset} from FIFO queue, gain set to 0'
+                    print(f"🔄 [{fila['time']}] MOVIMIENTO | {asset} | -{abs(amount):.8f} | Ganancia: 0.00€ | Ref: {refid}")
 
 
                 # CASO B.2: VENTAS O PERMUTAS REALES
@@ -371,7 +456,7 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
                 if not df.at[idx, 'FIFO_calculation']:  # If no error was set
                     detalle_lotes = formatear_detalle_lotes(lotes_consumidos)
                     df.at[idx, 'FIFO_calculation'] = (
-                        f'FIFO sale: sold {cantidad_total_a_salir:.6f} {asset} at unit price {precio_venta_unitario:.4f} EUR; '
+                        f'FIFO sale: sold {cantidad_total_a_salir:.8f} {asset} at unit price {precio_venta_unitario:.4f} EUR; '
                         f'gain=sum((sale_price-cost_price)*qty); consumed lots: {detalle_lotes}'
                     )
                     df.at[idx, 'Valor de transmision'] = round(valor_transmision_neto, 4)
@@ -411,7 +496,7 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
     print("="*40)
 
     # Validación final: Reconciliar los balances que nos quedan en las colas contra el balance final que reporta Kraken
-    realizar_validacion_final(colas, balances_referencia_kraken)
+    realizar_validacion_final(colas, balances_referencia_kraken, fecha_ultimo_movimiento_balance)
 
     # Guardar el último año procesado
     inventarios_anuales[anio_actual] = {a: list(c) for a, c in colas.items()}

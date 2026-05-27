@@ -98,7 +98,7 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
         with open(archivo_inventarios, 'r') as f:
             inventarios = json.load(f)
 
-        def procesar_inventario(anio):
+        def procesar_inventario(anio, fecha_balance=None):
             datos = []
             # Convertimos el año a string para asegurar la compatibilidad con las claves de JSON
             anio_str = str(anio)
@@ -110,19 +110,37 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
                     valor_eur = sum(float(l.get('cantidad', 0)) * float(l.get('coste_unitario', 0)) for l in lotes)
                     
                     if cant_total > TOLERANCIA_DUST:  # Solo incluir activos con cantidad significativa
-                        datos.append({
+                        fila_balance = {
                             'Asset': asset, 
                             'Cantidad': cant_total, 
                             'Valor_Euros': valor_eur
-                        })
+                        }
+                        if fecha_balance is not None:
+                            fila_balance['Fecha_balance'] = fecha_balance
+                        datos.append(fila_balance)
             
-            return pd.DataFrame(datos)
+            balance = pd.DataFrame(datos)
+            if not balance.empty:
+                balance = balance.sort_values('Asset').reset_index(drop=True)
+            return balance
         
         balance_inicio = procesar_inventario(anio_fiscal - 1)
         balance_cierre = procesar_inventario(anio_fiscal)
+        anios_inventario = [int(anio) for anio in inventarios.keys() if str(anio).isdigit()]
+        ultimo_anio_inventario = max(anios_inventario) if anios_inventario else None
+        fecha_ultimo_movimiento = df['time'].max() if not df.empty else None
+        if fecha_ultimo_movimiento is not None and not pd.isna(fecha_ultimo_movimiento):
+            fecha_ultimo_movimiento = fecha_ultimo_movimiento.normalize()
+        else:
+            fecha_ultimo_movimiento = None
+        balance_ultima_fecha = (
+            procesar_inventario(ultimo_anio_inventario, fecha_ultimo_movimiento)
+            if ultimo_anio_inventario is not None
+            else pd.DataFrame()
+        )
     except FileNotFoundError:
         print(f"⚠️ No se encontró el archivo de inventarios {archivo_inventarios}. Ejecuta FIFO_calculator actualizado.")
-        balance_inicio = balance_cierre = pd.DataFrame()
+        balance_inicio = balance_cierre = balance_ultima_fecha = pd.DataFrame()
 
     # --- RESÚMENES POR ACTIVO ---
     # Trading por activo
@@ -188,6 +206,7 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
         
         balance_inicio.to_excel(writer, sheet_name='4a. Balance_1-Ene', index=False)
         balance_cierre.to_excel(writer, sheet_name='4b. Balance_31-Dic', index=False)
+        balance_ultima_fecha.to_excel(writer, sheet_name='4c. Balance_Ultima_Fecha', index=False)
 
         # --- NUEVA PESTAÑA: DATOS DE ENTRADA ---
         # Guardamos el histórico completo que se usó para este año, 

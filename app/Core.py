@@ -7,10 +7,15 @@ import re
 import pandas as pd
 
 # --- CONFIGURACIÓN DE PRECISIÓN Y SALIDA ---
-ARCHIVO_ENTRADA = 'data/inputs/NCCkraken_stocks_etfs_ledgers_2021-05-02-2026-04-24.csv'
+ARCHIVO_ENTRADA = 'data/inputs/MRGLedgers_2021-2026.csv'
 PRECISION_CRIPTOS = 10
 TOLERANCIA_DUST = 1e-7  # Kraken a veces tiene pequeñas discrepancias
 PRECISION_SALIDA_CSV = 14  # Decimales máximos a conservar en archivos CSV de salida
+
+# --- MOVIMIENTOS CIRCULARES KRAKEN ---
+KRAKEN_CIRCULAR_MOVEMENT_TYPE = 'transfer'
+KRAKEN_SPOT_STAKING_CIRCULAR_SUBTYPES = {'spottostaking', 'stakingfromspot'}
+KRAKEN_CIRCULAR_MOVEMENT_MAX_SECONDS = 120
 
 # --- CLASIFICACIÓN DE TIPOS SEGÚN REGLA 3.1.4 (BittyTax) ---
 TIPOS_ENTRADA_BITTYTAX = {

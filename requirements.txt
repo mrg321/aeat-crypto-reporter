@@ -12,7 +12,7 @@ requests>=2.34.2,<3
 python-dateutil>=2.8.2
 
 # Motor opcional para lectura de archivos Excel si fuera necesario
-openpyxl>=3.1.2
+openpyxl>=3.1.5
 
 # Requerido por requests para manejar conexiones HTTP
 urllib3>=2.7.0,<3

@@ -4,11 +4,13 @@
 
 import pandas as pd
 import json
+from math import fsum
 from datetime import datetime
 
 from Core import AIRDROP_SUBTYPES_KRAKEN, ARCHIVO_ENTRADA, RENDIMIENTOS_REPORT_TYPES_KRAKEN
 from Core import RENDIMIENTOS_REPORT_TYPES_KRAKEN, TOLERANCIA_DUST, TRADING_REPORT_TYPES_KRAKEN
 from Core import TRADING_REPORT_TYPES_BITTYTAX, AIRDROP_TYPES_BITTYTAX, RENDIMIENTOS_REPORT_TYPES_BITTYTAX
+from Core import read_csv_normalized
 
 def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     if anio_fiscal is None:
@@ -16,7 +18,7 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     
     print(f"📊 Generando informe fiscal para el año {anio_fiscal}...")
     
-    df = pd.read_csv(archivo_fifo)
+    df = read_csv_normalized(archivo_fifo)
     df['time'] = pd.to_datetime(df['time'])
 
     # Excel does not support datetimes with timezones. 
@@ -106,8 +108,8 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
             if anio_str in inventarios:
                 for asset, lotes in inventarios[anio_str].items():
                     # Usamos .get() por seguridad y aseguramos que cantidad y coste sean floats
-                    cant_total = sum(float(l.get('cantidad', 0)) for l in lotes)
-                    valor_eur = sum(float(l.get('cantidad', 0)) * float(l.get('coste_unitario', 0)) for l in lotes)
+                    cant_total = fsum(float(l.get('cantidad', 0)) for l in lotes)
+                    valor_eur = fsum(float(l.get('cantidad', 0)) * float(l.get('coste_unitario', 0)) for l in lotes)
                     
                     if cant_total > TOLERANCIA_DUST:  # Solo incluir activos con cantidad significativa
                         fila_balance = {
@@ -194,30 +196,42 @@ def generar_informe_fiscal(archivo_fifo, anio_fiscal=None, informe_fiscal=None):
     #nombre_excel = f"{ruta_actual}/{informe_fiscal}_{anio_fiscal}.xlsx"
     nombre_excel = f"{informe_fiscal}_{anio_fiscal}.xlsx"
     with pd.ExcelWriter(nombre_excel, engine='xlsxwriter') as writer:
+        def es_columna_eur(column):
+            column_norm = str(column).strip().lower()
+            return (
+                'eur' in column_norm
+                or 'euro' in column_norm
+                or column_norm.startswith('valor')
+                or column_norm.startswith('ganancia')
+                or column_norm.startswith('gastos')
+            )
+
+        hojas_excel = {
+            '1a. Trading_Resumen': resumen_trading,
+            '1b. Trading_Detalle': reporte_trading,
+            '2a. Airdrops_Resumen': resumen_airdrops,
+            '2b. Airdrops_Detalle': reporte_airdrops,
+            '3a. Rendimientos_Resumen': resumen_rendimientos,
+            '3b. Rendimientos_Detalle': reporte_rendimientos,
+            '4a. Balance_1-Ene': balance_inicio,
+            '4b. Balance_31-Dic': balance_cierre,
+            '4c. Balance_Ultima_Fecha': balance_ultima_fecha,
+            '5. Datos_Entrada': df_year,
+        }
+
         # Resúmenes por activo
-        resumen_trading.to_excel(writer, sheet_name='1a. Trading_Resumen', index=False)
-        reporte_trading.to_excel(writer, sheet_name='1b. Trading_Detalle', index=False)
-        
-        resumen_airdrops.to_excel(writer, sheet_name='2a. Airdrops_Resumen', index=False)
-        reporte_airdrops.to_excel(writer, sheet_name='2b. Airdrops_Detalle', index=False)
-        
-        resumen_rendimientos.to_excel(writer, sheet_name='3a. Rendimientos_Resumen', index=False)
-        reporte_rendimientos.to_excel(writer, sheet_name='3b. Rendimientos_Detalle', index=False)
-        
-        balance_inicio.to_excel(writer, sheet_name='4a. Balance_1-Ene', index=False)
-        balance_cierre.to_excel(writer, sheet_name='4b. Balance_31-Dic', index=False)
-        balance_ultima_fecha.to_excel(writer, sheet_name='4c. Balance_Ultima_Fecha', index=False)
+        for sheet_name, data in hojas_excel.items():
+            data.to_excel(writer, sheet_name=sheet_name, index=False)
 
-        # --- NUEVA PESTAÑA: DATOS DE ENTRADA ---
-        # Guardamos el histórico completo que se usó para este año, 
-        # incluyendo las filas de EUR para que la trazabilidad sea total.
-        df_year.to_excel(writer, sheet_name='5. Datos_Entrada', index=False)
-
-        # Formatos básicos
-        #workbook = writer.book
-        #fmt_money = workbook.add_format({'num_format': '#,##0.00€'})
-        #for sheet in writer.sheets.values():
-        #    sheet.set_column('D:G', 15, fmt_money)
+        workbook = writer.book
+        fmt_number = workbook.add_format({'num_format': '0.##############'})
+        fmt_eur = workbook.add_format({'num_format': '#,##0.00 "€";[Red]-#,##0.00 "€";0.00 "€"'})
+        for sheet_name, data in hojas_excel.items():
+            worksheet = writer.sheets[sheet_name]
+            for col_idx, column in enumerate(data.columns):
+                if pd.api.types.is_numeric_dtype(data[column]):
+                    fmt_column = fmt_eur if es_columna_eur(column) else fmt_number
+                    worksheet.set_column(col_idx, col_idx, 18, fmt_column)
 
     print(f"✅ Informe Excel guardado como: {nombre_excel}")
 

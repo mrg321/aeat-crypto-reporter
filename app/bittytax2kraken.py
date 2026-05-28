@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from Core import ARCHIVO_ENTRADA, format_float_output, TIPOS_ENTRADA_BITTYTAX as TIPOS_ENTRADA
+from Core import ARCHIVO_ENTRADA, format_float_output, normalize_number, read_csv_normalized, TIPOS_ENTRADA_BITTYTAX as TIPOS_ENTRADA
 from Core import TIPOS_SALIDA_BITTYTAX as TIPOS_SALIDA
 
 
@@ -15,9 +15,11 @@ def determinar_wallet(asset):
 def calcular_tasa(amount_eur, amount):
     """Calcula la tasa evitando la división por cero o nulos."""
     try:
-        if pd.isna(amount_eur) or pd.isna(amount) or float(amount) == 0:
+        amount_eur = normalizar_numero(amount_eur)
+        amount = normalizar_numero(amount)
+        if amount == 0:
             return 0.0
-        return abs(float(amount_eur) / float(amount))
+        return abs(amount_eur / amount)
     except (ValueError, TypeError):
         return 0.0
 
@@ -28,7 +30,7 @@ def normalizar_numero(valor):
         valor_numerico = pd.to_numeric(valor, errors="coerce")
         if pd.isna(valor_numerico):
             return 0.0
-        return float(valor_numerico)
+        return normalize_number(valor_numerico)
     except (ValueError, TypeError):
         return 0.0
 
@@ -47,7 +49,7 @@ def normalizar_timestamp_bittytax(timestamp):
 
 def convertir_bittytax_a_kraken(archivo_entrada, archivo_salida):
     """Convierte un CSV exportado de BittyTax al formato de Kraken."""
-    df_in = pd.read_csv(archivo_entrada)
+    df_in = read_csv_normalized(archivo_entrada)
 
     filas_salida = []
 
@@ -79,13 +81,13 @@ def convertir_bittytax_a_kraken(archivo_entrada, archivo_salida):
                     "subclass": "",
                     "asset": buy_asset,
                     "wallet": wallet_buy,
-                    "amount": abs(float(buy_amt)) if buy_amt else 0,
+                    "amount": abs(normalizar_numero(buy_amt)) if buy_amt else 0,
                     "fee": normalizar_numero(row.get("Fee Quantity", 0))
                     if row.get("Fee Asset") == buy_asset
                     else 0,
                     "balance": 0,
                     "orden_original": "",
-                    "amount_eur": abs(float(buy_val_eur)) if buy_val_eur else 0,
+                    "amount_eur": abs(normalizar_numero(buy_val_eur)) if buy_val_eur else 0,
                     "fee_eur": normalizar_numero(row.get("Fee Value", 0))
                     if row.get("Fee Asset") == buy_asset
                     else 0,
@@ -112,13 +114,13 @@ def convertir_bittytax_a_kraken(archivo_entrada, archivo_salida):
                     "subclass": "",
                     "asset": sell_asset,
                     "wallet": wallet_sell,
-                    "amount": -abs(float(sell_amt)) if sell_amt else 0,
+                    "amount": -abs(normalizar_numero(sell_amt)) if sell_amt else 0,
                     "fee": normalizar_numero(row.get("Fee Quantity", 0))
                     if row.get("Fee Asset") == sell_asset
                     else 0,
                     "balance": 0,
                     "orden_original": "",
-                    "amount_eur": -abs(float(sell_val_eur))
+                    "amount_eur": -abs(normalizar_numero(sell_val_eur))
                     if sell_val_eur
                     else 0,
                     "fee_eur": normalizar_numero(row.get("Fee Value", 0))
@@ -140,8 +142,8 @@ def convertir_bittytax_a_kraken(archivo_entrada, archivo_salida):
                 buy_amt = row.get("Buy Quantity", 0)
                 buy_val_eur = row.get("Buy Value", 0)
                 w_type = determinar_wallet(buy_asset)
-                amount = abs(float(buy_amt)) if buy_amt else 0
-                amount_eur = abs(float(buy_val_eur)) if buy_val_eur else 0
+                amount = abs(normalizar_numero(buy_amt)) if buy_amt else 0
+                amount_eur = abs(normalizar_numero(buy_val_eur)) if buy_val_eur else 0
                 tasa = calcular_tasa(buy_val_eur, buy_amt)
 
                 if b_type == "Deposit" and str(buy_asset).strip().upper() == "EUR":
@@ -190,11 +192,11 @@ def convertir_bittytax_a_kraken(archivo_entrada, archivo_salida):
                     "subclass": "",
                     "asset": sell_asset,
                     "wallet": w_type,
-                    "amount": -abs(float(sell_amt)) if sell_amt else 0,
+                    "amount": -abs(normalizar_numero(sell_amt)) if sell_amt else 0,
                     "fee": normalizar_numero(row.get("Fee Quantity", 0)),
                     "balance": 0,
                     "orden_original": "",
-                    "amount_eur": -abs(float(sell_val_eur))
+                    "amount_eur": -abs(normalizar_numero(sell_val_eur))
                     if sell_val_eur
                     else 0,
                     "fee_eur": normalizar_numero(row.get("Fee Value", 0)),

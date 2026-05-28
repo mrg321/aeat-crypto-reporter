@@ -4,6 +4,7 @@
 
 import pandas as pd
 import json
+from math import fsum
 
 from collections import deque
 
@@ -12,7 +13,16 @@ from Core import KRAKEN_CIRCULAR_MOVEMENT_MAX_SECONDS, KRAKEN_CIRCULAR_MOVEMENT_
 from Core import KRAKEN_SPOT_STAKING_CIRCULAR_SUBTYPES, PRECISION_CRIPTOS
 from Core import TIPOS_ENTRADA_FEE_COMO_DISPOSICION, TIPOS_NEUTROS_BITTYTAX
 from Core import TIPOS_REALES_BITTYTAX, TIPOS_REALES_KRAKEN
-from Core import TOLERANCIA_DUST, ARCHIVO_ENTRADA, format_float_output, normalizar_activo
+from Core import TOLERANCIA_DUST, ARCHIVO_ENTRADA, format_float_output, format_number_output
+from Core import normalize_number, normalizar_activo, read_csv_normalized
+
+
+def fmt_qty(value):
+    return format_number_output(value, PRECISION_CRIPTOS)
+
+
+def fmt_eur(value):
+    return format_number_output(value)
 
 # Antes de guardar, convertimos el diccionario a uno "JSON-friendly"
 def serializar_inventarios(obj):
@@ -39,27 +49,27 @@ def obtener_balance_total_colas(colas):
     
     for asset, cola in colas.items():
         # Sumamos las cantidades de cada lote en la deque de este activo
-        balance_activo = sum(lote['cantidad'] for lote in cola)
+        balance_activo = fsum(lote['cantidad'] for lote in cola)
         
         # Solo lo incluimos si el balance es significativo (evitar residuos de redondeo)
         if balance_activo > TOLERANCIA_DUST:
-            balances[asset] = round(balance_activo, PRECISION_CRIPTOS)
+            balances[asset] = normalize_number(balance_activo, PRECISION_CRIPTOS)
             
     return balances
 
 def obtener_balance_cola(colas, asset):
-    return sum(lote['cantidad'] for lote in colas.get(asset, []))
+    return fsum(lote['cantidad'] for lote in colas.get(asset, []))
 
 def debug_fiat_balance(colas, divisa='USD'):
-    saldo = sum(lote['cantidad'] for lote in colas.get(divisa, []))
-    return round(saldo, 2)
+    saldo = fsum(lote['cantidad'] for lote in colas.get(divisa, []))
+    return normalize_number(saldo, 2)
 
 def consumir_fifo(colas, asset, cantidad_total_a_salir, precio_venta_unitario):
     """
     Consume lotes FIFO de un activo y calcula la ganancia/perdida resultante.
     Devuelve (ganancia_total, lotes_consumidos, cantidad_pendiente).
     """
-    cantidad_a_procesar = round(cantidad_total_a_salir, PRECISION_CRIPTOS)
+    cantidad_a_procesar = normalize_number(cantidad_total_a_salir, PRECISION_CRIPTOS)
     ganancia_total = 0.0
     lotes_consumidos = []
 
@@ -68,31 +78,33 @@ def consumir_fifo(colas, asset, cantidad_total_a_salir, precio_venta_unitario):
             break
 
         lote = colas[asset][0]
-        cant_lote = round(lote['cantidad'], PRECISION_CRIPTOS)
+        cant_lote = normalize_number(lote['cantidad'], PRECISION_CRIPTOS)
         coste_unitario_lote = lote['coste_unitario']
         cantidad_consumida = min(cant_lote, cantidad_a_procesar)
 
-        ganancia_total += cantidad_consumida * (precio_venta_unitario - coste_unitario_lote)
+        ganancia_total = normalize_number(
+            ganancia_total + cantidad_consumida * (precio_venta_unitario - coste_unitario_lote)
+        )
         lotes_consumidos.append({
             'cantidad': cantidad_consumida,
             'coste_unitario': coste_unitario_lote,
-            'valor_original': round(cantidad_consumida * coste_unitario_lote, 4),
+            'valor_original': normalize_number(cantidad_consumida * coste_unitario_lote),
             'fecha': lote['fecha'],
             'fee_compra': lote['fee_compra']
         })
 
         if cant_lote <= cantidad_a_procesar:
-            cantidad_a_procesar = round(cantidad_a_procesar - cant_lote, PRECISION_CRIPTOS)
+            cantidad_a_procesar = normalize_number(cantidad_a_procesar - cant_lote, PRECISION_CRIPTOS)
             colas[asset].popleft()
         else:
-            lote['cantidad'] = round(lote['cantidad'] - cantidad_a_procesar, PRECISION_CRIPTOS)
+            lote['cantidad'] = normalize_number(lote['cantidad'] - cantidad_a_procesar, PRECISION_CRIPTOS)
             cantidad_a_procesar = 0
 
-    return ganancia_total, lotes_consumidos, cantidad_a_procesar
+    return ganancia_total, lotes_consumidos, normalize_number(cantidad_a_procesar, PRECISION_CRIPTOS)
 
 def formatear_detalle_lotes(lotes_consumidos):
     return ', '.join(
-        f"{l['cantidad']:.8f}@{l['coste_unitario']:.4f}EUR (valor original {l['valor_original']:.4f}EUR, fecha {l['fecha'].strftime('%Y-%m-%d')}, fee_compra {l['fee_compra']:.4f}EUR)"
+        f"{fmt_qty(l['cantidad'])}@{fmt_eur(l['coste_unitario'])}EUR (valor original {fmt_eur(l['valor_original'])}EUR, fecha {l['fecha'].strftime('%Y-%m-%d')}, fee_compra {fmt_eur(l['fee_compra'])}EUR)"
         for l in lotes_consumidos
     )
 
@@ -168,11 +180,11 @@ def realizar_validacion_final(colas, balances_referencia_kraken, fecha_ultimo_mo
 
     for asset_norm in sorted(todos_los_activos):
         # 1. Sumar lo que hay en nuestra cola FIFO (ya está normalizado)
-        saldo_fifo = sum(lote['cantidad'] for lote in colas.get(asset_norm, []))
+        saldo_fifo = fsum(lote['cantidad'] for lote in colas.get(asset_norm, []))
         
         # 2. Sumar todos los balances de Kraken que coincidan con este activo normalizado
         # Ejemplo: suma el balance de 'ETH' + balance de 'ETH.S'
-        saldo_kraken_total = sum(
+        saldo_kraken_total = fsum(
             bal for etiqueta, bal in balances_referencia_kraken.items() 
             if normalizar_activo(etiqueta) == asset_norm
         )
@@ -180,11 +192,11 @@ def realizar_validacion_final(colas, balances_referencia_kraken, fecha_ultimo_mo
         discrepancia = abs(saldo_fifo - saldo_kraken_total)
         
         status = "✅ OK"
-        if discrepancia > 1e-7: # Tolerancia para errores de redondeo
+        if discrepancia > TOLERANCIA_DUST: # Tolerancia para errores de redondeo
             status = "❌ ERROR"
             errores_encontrados += 1
         
-        print(f"{asset_norm:<10} | FIFO: {saldo_fifo:>12.8f} | Entrada: {saldo_kraken_total:>12.8f} | Dif: {discrepancia:>12.8f} | {status}")
+        print(f"{asset_norm:<10} | FIFO: {fmt_qty(saldo_fifo):>12} | Entrada: {fmt_qty(saldo_kraken_total):>12} | Dif: {fmt_qty(discrepancia):>12} | {status}")
 
     print("="*50)
     if errores_encontrados == 0:
@@ -195,7 +207,7 @@ def realizar_validacion_final(colas, balances_referencia_kraken, fecha_ultimo_mo
 
 def calcular_fifo(archivo_entrada, archivo_salida, sabor):
     # 1. Carga de datos
-    df = pd.read_csv(archivo_entrada)
+    df = read_csv_normalized(archivo_entrada)
     df['asset'] = df['asset'].apply(normalizar_activo)
     df['time'] = pd.to_datetime(df['time'])    # Orden cronológico estricto
     #df = df.sort_values(['time', 'refid']).reset_index(drop=True)
@@ -303,7 +315,7 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
                 #print(f"DEBUG | Saldo acumulado de USD: {debug_fiat_balance(colas)} $")
                 pass
             elif normalizar_activo(asset) == 'BTC':
-                print(f"₿ [{fila['time']}] BTC DETECTADO | Ref: {refid} | Tipo: {tipo} | Subtipo: {subtipo} | Cantidad: {amount} | Saldo en Kraken: {balance_actual:.8f} BTC")
+                print(f"₿ [{fila['time']}] BTC DETECTADO | Ref: {refid} | Tipo: {tipo} | Subtipo: {subtipo} | Cantidad: {fmt_qty(amount)} | Saldo en Kraken: {fmt_qty(balance_actual)} BTC")
                 print(f"DEBUG | Saldo acumulado de BTC: {obtener_balance_cola(colas, 'BTC')} BTC | Ref: {refid}")
                 pass
 
@@ -351,9 +363,9 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
                 base_coste = abs(fila['amount_eur'])
                 fee_en_este_asset = abs(fila['fee']) if fila['asset'] == asset else 0
                 es_entrada_con_fee_fifo = str(tipo).lower() in TIPOS_ENTRADA_FEE_COMO_DISPOSICION
-                cantidad_entrada = amount if es_entrada_con_fee_fifo else amount - fee_en_este_asset
-                coste_total = base_coste if es_entrada_con_fee_fifo else base_coste + fee_eur
-                coste_unitario = coste_total / amount
+                cantidad_entrada = normalize_number(amount if es_entrada_con_fee_fifo else amount - fee_en_este_asset, PRECISION_CRIPTOS)
+                coste_total = normalize_number(base_coste if es_entrada_con_fee_fifo else base_coste + fee_eur)
+                coste_unitario = normalize_number(coste_total / amount)
                 
                 colas[asset].append({
                     'cantidad': cantidad_entrada,
@@ -361,48 +373,48 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
                     'fecha': fila['time'],
                     'fee_compra': 0.0 if es_entrada_con_fee_fifo else fee_eur
                 })
-                #print(f"📥 [{fila['time']}] +{amount:.8f} {asset} | Coste: {coste_total:.2f}€ | Ref: {refid}")
+                #print(f"📥 [{fila['time']}] +{fmt_qty(amount)} {asset} | Coste: {fmt_eur(coste_total)}€ | Ref: {refid}")
 
-                df.at[idx, 'FIFO_calculation'] = f'Entry: added {cantidad_entrada:.8f} {asset} to FIFO queue with unit cost {coste_unitario:.4f} EUR, no gain calculated'
+                df.at[idx, 'FIFO_calculation'] = f'Entry: added {fmt_qty(cantidad_entrada)} {asset} to FIFO queue with unit cost {fmt_eur(coste_unitario)} EUR, no gain calculated'
                 df.at[idx, 'fee_eur_compras'] = 0.0 if es_entrada_con_fee_fifo else fee_eur
 
                 if es_entrada_con_fee_fifo and fee_en_este_asset > TOLERANCIA_DUST:
-                    valor_transmision_fee = fee_eur
-                    precio_venta_unitario_fee = valor_transmision_fee / fee_en_este_asset
-                    print(f"📥 [{fila['time']}] FEE FIFO SALE DETECTADO | {asset} | {fee_en_este_asset:.8f} as fee | Ref: {refid} | Precio unitario para fee: {precio_venta_unitario_fee:.4f} EUR | Saldo en colas antes de procesar fee: {obtener_balance_cola(colas, asset):.8f} {asset} | balance kraken: {balance_actual:.8f} {asset}")
+                    valor_transmision_fee = normalize_number(fee_eur)
+                    precio_venta_unitario_fee = normalize_number(valor_transmision_fee / fee_en_este_asset)
+                    print(f"📥 [{fila['time']}] FEE FIFO SALE DETECTADO | {asset} | {fmt_qty(fee_en_este_asset)} as fee | Ref: {refid} | Precio unitario para fee: {fmt_eur(precio_venta_unitario_fee)} EUR | Saldo en colas antes de procesar fee: {fmt_qty(obtener_balance_cola(colas, asset))} {asset} | balance kraken: {fmt_qty(balance_actual)} {asset}")
                     ganancia_fee, lotes_fee, pendiente_fee = consumir_fifo(
                         colas, asset, fee_en_este_asset, precio_venta_unitario_fee
                     )
-                    print(f"📥 [{fila['time']}] FEE FIFO SALE | {asset} | {fee_en_este_asset:.8f} as fee | Ref: {refid} | Saldo en colas después de procesar fee: {obtener_balance_cola(colas, asset):.8f} {asset} | balance kraken: {balance_actual:.8f} {asset}")
+                    print(f"📥 [{fila['time']}] FEE FIFO SALE | {asset} | {fmt_qty(fee_en_este_asset)} as fee | Ref: {refid} | Saldo en colas después de procesar fee: {fmt_qty(obtener_balance_cola(colas, asset))} {asset} | balance kraken: {fmt_qty(balance_actual)} {asset}")
 
-                    if pendiente_fee > 1e-5:
+                    if pendiente_fee > TOLERANCIA_DUST:
                         df.at[idx, 'FIFO_calculation'] += (
                             f'; Error: Insufficient balance in FIFO queue for fee sale of '
-                            f'{pendiente_fee:.8f} {asset}'
+                            f'{fmt_qty(pendiente_fee)} {asset}'
                         )
-                        print(f"❌ ERROR: Sin saldo de {asset} para procesar fee de {pendiente_fee:.8f} (Ref: {refid})")
+                        print(f"❌ ERROR: Sin saldo de {asset} para procesar fee de {fmt_qty(pendiente_fee)} (Ref: {refid})")
                     else:
                         detalle_lotes_fee = formatear_detalle_lotes(lotes_fee)
                         df.at[idx, 'FIFO_calculation'] += (
-                            f'; Fee FIFO sale: sold {fee_en_este_asset:.8f} {asset} as fee '
-                            f'at unit price {precio_venta_unitario_fee:.4f} EUR; '
+                            f'; Fee FIFO sale: sold {fmt_qty(fee_en_este_asset)} {asset} as fee '
+                            f'at unit price {fmt_eur(precio_venta_unitario_fee)} EUR; '
                             f'gain=sum((sale_price-cost_price)*qty); consumed lots: {detalle_lotes_fee}'
                         )
-                        df.at[idx, 'ganancia_fifo'] = round(ganancia_fee, 4)
-                        df.at[idx, 'Valor de transmision'] = round(valor_transmision_fee, 4)
-                        df.at[idx, 'Valor de adquisicion'] = round(sum(l['valor_original'] for l in lotes_fee), 4)
-                        df.at[idx, 'fee_eur_compras'] = sum(l['fee_compra'] for l in lotes_fee)
+                        df.at[idx, 'ganancia_fifo'] = normalize_number(ganancia_fee)
+                        df.at[idx, 'Valor de transmision'] = normalize_number(valor_transmision_fee)
+                        df.at[idx, 'Valor de adquisicion'] = normalize_number(fsum(l['valor_original'] for l in lotes_fee))
+                        df.at[idx, 'fee_eur_compras'] = normalize_number(fsum(l['fee_compra'] for l in lotes_fee))
 
                 if str(tipo).lower() in ['staking', 'earn', 'reward', 'dividend', 'lending']:
-                    print(f"📥 [{fila['time']}] RECOMPENSA | {asset} | +{amount:.8f} | Ref: {refid}")
+                    print(f"📥 [{fila['time']}] RECOMPENSA | {asset} | +{fmt_qty(amount)} | Ref: {refid}")
                 else:
-                    print(f"📥 [{fila['time']}] ENTRADA    | {asset} | +{amount:.8f} | Ref: {refid} | Saldo anterior en colas: {saldo_anterior_cola}")
+                    print(f"📥 [{fila['time']}] ENTRADA    | {asset} | +{fmt_qty(amount)} | Ref: {refid} | Saldo anterior en colas: {fmt_qty(saldo_anterior_cola)}")
 
             # --- LÓGICA B: SALIDAS (Ventas, Permutas, Retiros) ---
             elif amount < 0:
-                #cantidad_total_a_salir = round(abs(amount), PRECISION_CRIPTOS)
+                #cantidad_total_a_salir = normalize_number(abs(amount), PRECISION_CRIPTOS)
                 fee_en_este_asset = abs(fila['fee']) if fila['asset'] == asset else 0
-                cantidad_total_a_salir = round(abs(amount), PRECISION_CRIPTOS) + fee_en_este_asset
+                cantidad_total_a_salir = normalize_number(abs(amount), PRECISION_CRIPTOS) + fee_en_este_asset
                 ganancia_total_fila = 0.0
                 lotes_consumidos = []
                 valor_transmision_neto = 0.0
@@ -414,16 +426,16 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
                     cantidad_a_procesar = cantidad_total_a_salir
                     while cantidad_a_procesar > TOLERANCIA_DUST and colas[asset]:
                         lote = colas[asset][0]
-                        cant_lote = round(lote['cantidad'], PRECISION_CRIPTOS)
+                        cant_lote = normalize_number(lote['cantidad'], PRECISION_CRIPTOS)
                         if cant_lote <= cantidad_a_procesar:
-                            cantidad_a_procesar = round(cantidad_a_procesar - cant_lote, PRECISION_CRIPTOS)
+                            cantidad_a_procesar = normalize_number(cantidad_a_procesar - cant_lote, PRECISION_CRIPTOS)
                             colas[asset].popleft()
                         else:
-                            lote['cantidad'] = round(lote['cantidad'] - cantidad_a_procesar, PRECISION_CRIPTOS)
+                            lote['cantidad'] = normalize_number(lote['cantidad'] - cantidad_a_procesar, PRECISION_CRIPTOS)
                             cantidad_a_procesar = 0
                     df.at[idx, 'ganancia_fifo'] = 0.0
-                    df.at[idx, 'FIFO_calculation'] = f'Neutral movement: adjusted inventory by removing {cantidad_total_a_salir:.8f} {asset} from FIFO queue, gain set to 0'
-                    print(f"🔄 [{fila['time']}] MOVIMIENTO | {asset} | -{abs(amount):.8f} | Ganancia: 0.00€ | Ref: {refid}")
+                    df.at[idx, 'FIFO_calculation'] = f'Neutral movement: adjusted inventory by removing {fmt_qty(cantidad_total_a_salir)} {asset} from FIFO queue, gain set to 0'
+                    print(f"🔄 [{fila['time']}] MOVIMIENTO | {asset} | -{fmt_qty(abs(amount))} | Ganancia: 0€ | Ref: {refid}")
 
 
                 # CASO B.2: VENTAS O PERMUTAS REALES
@@ -434,31 +446,31 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
                     
                     # La ganancia se calcula sobre el neto recibido (EUR - fee_eur)
                     #valor_transmision_neto = base_transmision - fee_eur
-                    valor_transmision_neto = base_transmision
-                    precio_venta_unitario = valor_transmision_neto / cantidad_total_a_salir
+                    valor_transmision_neto = normalize_number(base_transmision)
+                    precio_venta_unitario = normalize_number(valor_transmision_neto / cantidad_total_a_salir)
                     ganancia_total_fila, lotes_consumidos, cantidad_pendiente = consumir_fifo(
                         colas, asset, cantidad_total_a_salir, precio_venta_unitario
                     )
 
-                    if cantidad_pendiente > 1e-5:
-                        df.at[idx, 'FIFO_calculation'] = f'Error: Insufficient balance in FIFO queue for {asset}, cannot process sale of {cantidad_pendiente:.8f}'
-                        print(f"❌ ERROR: Sin saldo de {asset} para vender {cantidad_pendiente:.8f} (Ref: {refid})")
+                    if cantidad_pendiente > TOLERANCIA_DUST:
+                        df.at[idx, 'FIFO_calculation'] = f'Error: Insufficient balance in FIFO queue for {asset}, cannot process sale of {fmt_qty(cantidad_pendiente)}'
+                        print(f"❌ ERROR: Sin saldo de {asset} para vender {fmt_qty(cantidad_pendiente)} (Ref: {refid})")
 
                 # ASIGNACIÓN CRÍTICA: Guardamos el resultado en el DataFrame original
-                df.at[idx, 'ganancia_fifo'] = round(ganancia_total_fila, 4)
+                df.at[idx, 'ganancia_fifo'] = normalize_number(ganancia_total_fila)
                 
                 if not df.at[idx, 'FIFO_calculation']:  # If no error was set
                     detalle_lotes = formatear_detalle_lotes(lotes_consumidos)
                     df.at[idx, 'FIFO_calculation'] = (
-                        f'FIFO sale: sold {cantidad_total_a_salir:.8f} {asset} at unit price {precio_venta_unitario:.4f} EUR; '
+                        f'FIFO sale: sold {fmt_qty(cantidad_total_a_salir)} {asset} at unit price {fmt_eur(precio_venta_unitario)} EUR; '
                         f'gain=sum((sale_price-cost_price)*qty); consumed lots: {detalle_lotes}'
                     )
-                    df.at[idx, 'Valor de transmision'] = round(valor_transmision_neto, 4)
-                    df.at[idx, 'Valor de adquisicion'] = round(sum(l['valor_original'] for l in lotes_consumidos), 4)
-                    df.at[idx, 'fee_eur_compras'] = sum(l['fee_compra'] for l in lotes_consumidos)
+                    df.at[idx, 'Valor de transmision'] = normalize_number(valor_transmision_neto)
+                    df.at[idx, 'Valor de adquisicion'] = normalize_number(fsum(l['valor_original'] for l in lotes_consumidos))
+                    df.at[idx, 'fee_eur_compras'] = normalize_number(fsum(l['fee_compra'] for l in lotes_consumidos))
                 
                 if abs(ganancia_total_fila) > 0:
-                    print(f"📤 [{fila['time']}] VENTA {asset} | Ganancia: {ganancia_total_fila:+.2f}€ | Ref: {refid}")
+                    print(f"📤 [{fila['time']}] VENTA {asset} | Ganancia: {fmt_eur(ganancia_total_fila)}€ | Ref: {refid}")
 
             # --- VALIDACIÓN POST-OPERACIÓN ---
             # Comparamos lo que hay en nuestra cola contra la columna 'balance' de Kraken
@@ -467,9 +479,9 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
             discrepancia = abs(saldo_cola - fila['balance'])
             
             if discrepancia > TOLERANCIA_DUST and fila['asset'] == asset:
-                print(f"⚠️ DISCREPANCIA BALANCE | Asset: {asset} | Cola: {saldo_cola:.8f} | Ledger: {fila['balance']:.8f} | Diff: {discrepancia:.8f} | Ref: {refid}")
+                print(f"⚠️ DISCREPANCIA BALANCE | Asset: {asset} | Cola: {fmt_qty(saldo_cola)} | Ledger: {fmt_qty(fila['balance'])} | Diff: {fmt_qty(discrepancia)} | Ref: {refid}")
                 if asset == 'BTC':
-                    #print(f"DEBUG | Colas BTC: {[round(l['cantidad'], 8) for l in colas['BTC']]} | Ref: {refid}")
+                    #print(f"DEBUG | Colas BTC: {[fmt_qty(l['cantidad']) for l in colas['BTC']]} | Ref: {refid}")
                     pass
 
     # Al final de calcular_fifo(...)
@@ -482,11 +494,11 @@ def calcular_fifo(archivo_entrada, archivo_salida, sabor):
         print("No quedan activos en el inventario.")
     else:
         for asset, saldo in resumen_inventario.items():
-            print(f"🔹 {asset:10}: {saldo:>15.10f}")
+            print(f"🔹 {asset:10}: {fmt_qty(saldo):>15}")
     print("="*40)
 
     asset_eur = "SALDO EUR"
-    print(f"🔹 {asset_eur:10}: {saldo_eur_tracker:>15.10f}")
+    print(f"🔹 {asset_eur:10}: {fmt_eur(saldo_eur_tracker):>15}")
     print("="*40)
 
     # Validación final: Reconciliar los balances que nos quedan en las colas contra el balance final que reporta Kraken

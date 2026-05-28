@@ -12,8 +12,7 @@ import FIFO_calculator as calculator
 import Fiscal_Reporter_ES as reporter
 import sys
 import subprocess  # nosec B404
-import pandas as pd
-from Core import ARCHIVO_ENTRADA, IN_COLAB, recognize_csv_format
+from Core import ARCHIVO_ENTRADA, IN_COLAB, read_csv_normalized, recognize_csv_format
 
 # --- INSTALACIÓN AUTOMÁTICA EN COLAB ---
 if IN_COLAB:
@@ -31,7 +30,7 @@ def detect_input_format(archivo_entrada):
     if not os.path.exists(archivo_entrada):
         raise FileNotFoundError(f"No se encuentra el origen '{archivo_entrada}'.")
 
-    columns = pd.read_csv(archivo_entrada, nrows=0).columns
+    columns = read_csv_normalized(archivo_entrada, nrows=0).columns
     csv_format = recognize_csv_format(columns)
     if csv_format == "unknown":
         raise ValueError(

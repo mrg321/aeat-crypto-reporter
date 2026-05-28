@@ -4,13 +4,33 @@
 
 import os
 import re
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP, localcontext
 import pandas as pd
 
 # --- CONFIGURACIÓN DE PRECISIÓN Y SALIDA ---
-ARCHIVO_ENTRADA = 'data/inputs/MRGLedgers_2021-2026.csv'
-PRECISION_CRIPTOS = 10
+ARCHIVO_ENTRADA = 'data/inputs/NCCkraken_stocks_etfs_ledgers_2021-05-02-2026-04-24.csv'
+PRECISION_CRIPTOS = 14
 TOLERANCIA_DUST = 1e-7  # Kraken a veces tiene pequeñas discrepancias
 PRECISION_SALIDA_CSV = 14  # Decimales máximos a conservar en archivos CSV de salida
+
+NUMERIC_INPUT_COLUMNS = {
+    "amount",
+    "fee",
+    "balance",
+    "amount_eur",
+    "fee_eur",
+    "tasa",
+    "ganancia_fifo",
+    "valor de transmision",
+    "valor de adquisicion",
+    "fee_eur_compras",
+    "buy quantity",
+    "buy value",
+    "sell quantity",
+    "sell value",
+    "fee quantity",
+    "fee value",
+}
 
 # --- MOVIMIENTOS CIRCULARES KRAKEN ---
 KRAKEN_CIRCULAR_MOVEMENT_TYPE = 'transfer'
@@ -138,6 +158,55 @@ TIPOS_REALES_KRAKEN = [
 ]
 
 
+def _decimal_from_number(value):
+    if pd.isna(value):
+        return None
+
+    try:
+        decimal_value = Decimal(str(value).strip())
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+
+    if not decimal_value.is_finite():
+        return None
+
+    return decimal_value
+
+
+def normalize_number(value, max_decimals=PRECISION_SALIDA_CSV):
+    """Normalize a numeric value to the configured realistic precision."""
+    decimal_value = _decimal_from_number(value)
+    if decimal_value is None:
+        return 0.0 if pd.isna(value) else value
+
+    quantizer = Decimal(1).scaleb(-max_decimals)
+    with localcontext() as context:
+        context.prec = max(28, len(decimal_value.as_tuple().digits) + max_decimals)
+        normalized = decimal_value.quantize(quantizer, rounding=ROUND_HALF_UP).normalize()
+    if normalized == 0:
+        normalized = Decimal(0)
+
+    return float(normalized)
+
+
+def format_number_output(value, max_decimals=PRECISION_SALIDA_CSV):
+    """
+    Format numeric output without scientific notation, keeping up to max_decimals.
+    """
+    decimal_value = _decimal_from_number(value)
+    if decimal_value is None:
+        return ''
+
+    quantizer = Decimal(1).scaleb(-max_decimals)
+    with localcontext() as context:
+        context.prec = max(28, len(decimal_value.as_tuple().digits) + max_decimals)
+        decimal_value = decimal_value.quantize(quantizer, rounding=ROUND_HALF_UP)
+    if decimal_value == 0:
+        decimal_value = Decimal(0)
+
+    return format(decimal_value, 'f').rstrip('0').rstrip('.') or '0'
+
+
 def format_float_output(x):
     """
     Formatea floats removiendo ceros al final pero manteniendo decimales no-cero.
@@ -147,15 +216,27 @@ def format_float_output(x):
     - 0.00000001 -> '0.00000001'
     - 1.50000000 -> '1.5'
     """
-    if pd.isna(x):
-        return ''
-    # Convertir a float por si acaso
-    x = float(x)
-    # Formatear con precisión máxima
-    s = f'{x:.{PRECISION_SALIDA_CSV}f}'
-    # Remover ceros al final pero mantener al menos el número entero
-    s = s.rstrip('0').rstrip('.')
-    return s
+    return format_number_output(x)
+
+
+def read_csv_normalized(*args, **kwargs):
+    """
+    Read CSV files with pandas' round-trip float parser to preserve realistic
+    input precision and avoid early binary-float shortening.
+    """
+    kwargs.setdefault("float_precision", "round_trip")
+    df = pd.read_csv(*args, **kwargs)
+    normalize_numeric_dataframe(df)
+    return df
+
+
+def normalize_numeric_dataframe(df):
+    """Normalize known numeric columns in-place using the project precision."""
+    for column in df.columns:
+        if str(column).strip().lower() in NUMERIC_INPUT_COLUMNS:
+            df[column] = pd.to_numeric(df[column], errors="coerce").fillna(0.0)
+            df[column] = df[column].map(normalize_number)
+    return df
 
 
 def normalizar_activo(asset):

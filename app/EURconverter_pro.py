@@ -10,7 +10,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import time
 from functools import wraps
-from Core import ARCHIVO_ENTRADA, format_float_output, normalizar_activo
+from Core import ARCHIVO_ENTRADA, format_float_output, format_number_output, normalize_number, normalizar_activo, read_csv_normalized
 
 def retry_api_call(max_retries=3, delay=30):
     """Decorador para gestionar reintentos en llamadas a la API de Kraken"""
@@ -95,7 +95,7 @@ class KrakenConverter:
             # Extracción del precio de cierre (índice 4 del primer registro OHLC)
             ohlc_data = datos['result'].get(pair_id)
             if ohlc_data and len(ohlc_data) > 0:
-                tasa = float(ohlc_data[0][4])
+                tasa = normalize_number(ohlc_data[0][4])
                 return tasa if tasa > 0 else None
                 
             return None
@@ -147,7 +147,7 @@ class KrakenConverter:
 
 def procesar_ledger(archivo_entrada, archivo_salida):
     converter = KrakenConverter()
-    df = pd.read_csv(archivo_entrada)
+    df = read_csv_normalized(archivo_entrada)
     df['asset'] = df['asset'].apply(normalizar_activo)
 
     # CREACIÓN DEL ÍNDICE DE ORDEN ORIGINAL
@@ -201,8 +201,8 @@ def procesar_ledger(archivo_entrada, archivo_salida):
                 df.at[indice, 'legs_subclasses'] = legs_subclasses
             # Caso 1: La fila es el propio EUR
             if asset == 'EUR':
-                df.at[indice, 'amount_eur'] = fila['amount']
-                df.at[indice, 'fee_eur'] = fila['fee']
+                df.at[indice, 'amount_eur'] = normalize_number(fila['amount'])
+                df.at[indice, 'fee_eur'] = normalize_number(fila['fee'])
                 df.at[indice, 'tasa'] = 1.0
                 df.at[indice, 'EUR_conversion'] = 'Direct EUR assignment'
                 continue
@@ -214,10 +214,10 @@ def procesar_ledger(archivo_entrada, archivo_salida):
                 tasa_api = converter.obtener_tasa_conversion(asset, fecha_api)                
                 if tasa_api is not None:
                     df.at[indice, 'tasa'] = tasa_api
-                    df.at[indice, 'amount_eur'] = fila['amount'] * tasa_api
-                    df.at[indice, 'fee_eur'] = fila['fee'] * tasa_api
+                    df.at[indice, 'amount_eur'] = normalize_number(fila['amount'] * tasa_api)
+                    df.at[indice, 'fee_eur'] = normalize_number(fila['fee'] * tasa_api)
                     df.at[indice, 'EUR_conversion'] = 'API conversion for multi-leg operation'
-                    print(f"🌐 [API KRAKEN - MULTIPATA] {fila['time']} | {asset}: {tasa_api} EUR | Ref: {refid} | Type: {fila['type']}")
+                    print(f"🌐 [API KRAKEN - MULTIPATA] {fila['time']} | {asset}: {format_number_output(tasa_api)} EUR | Ref: {refid} | Type: {fila['type']}")
                 else:
                     df.at[indice, 'EUR_conversion'] = 'Error: No rate available for multi-leg operation'
                     print(f"❌ [{fila['time']}] {asset}: Sin tasa disponible")
@@ -226,14 +226,14 @@ def procesar_ledger(archivo_entrada, archivo_salida):
             elif valor_fiat_real is not None and fila['amount'] != 0:
                 # --- LÓGICA DE CORTOCIRCUITO (No API) ---
                 # La tasa es el resultado de dividir los EUR reales entre las unidades cripto
-                tasa_real = valor_fiat_real / abs(fila['amount'])
+                tasa_real = normalize_number(valor_fiat_real / abs(fila['amount']))
                 
                 df.at[indice, 'tasa'] = tasa_real
-                df.at[indice, 'amount_eur'] = fila['amount'] * tasa_real
-                df.at[indice, 'fee_eur'] = fila['fee'] * tasa_real
+                df.at[indice, 'amount_eur'] = normalize_number(fila['amount'] * tasa_real)
+                df.at[indice, 'fee_eur'] = normalize_number(fila['fee'] * tasa_real)
                 df.at[indice, 'EUR_conversion'] = 'Calculated from real EUR value in 2-leg operation'
                 
-                print(f"✅ [FIAT REAL - 2 PATAS] {fila['time']} | {asset}: Tasa calculada {tasa_real:.4f} EUR (Ref: {refid})")
+                print(f"✅ [FIAT REAL - 2 PATAS] {fila['time']} | {asset}: Tasa calculada {format_number_output(tasa_real)} EUR (Ref: {refid})")
             # Caso 4: Permutas o staking sin pata EUR -> Consultar API para obtener la tasa de ese día
             else:
                 # --- LÓGICA DE API (Para permutas o staking) ---
@@ -243,10 +243,10 @@ def procesar_ledger(archivo_entrada, archivo_salida):
                 
                 if tasa_api is not None:
                     df.at[indice, 'tasa'] = tasa_api
-                    df.at[indice, 'amount_eur'] = fila['amount'] * tasa_api
-                    df.at[indice, 'fee_eur'] = fila['fee'] * tasa_api
+                    df.at[indice, 'amount_eur'] = normalize_number(fila['amount'] * tasa_api)
+                    df.at[indice, 'fee_eur'] = normalize_number(fila['fee'] * tasa_api)
                     df.at[indice, 'EUR_conversion'] = 'API conversion for trade/staking'
-                    print(f"🌐 [API KRAKEN - PERMUTAS/STAKING] {fila['time']} | {asset}: {tasa_api} EUR | Ref: {refid} | Type: {fila['type']}")
+                    print(f"🌐 [API KRAKEN - PERMUTAS/STAKING] {fila['time']} | {asset}: {format_number_output(tasa_api)} EUR | Ref: {refid} | Type: {fila['type']}")
                 else:
                     df.at[indice, 'EUR_conversion'] = 'Error: No rate available for trade/staking'
                     print(f"❌ [{fila['time']}] {asset}: Sin tasa disponible")
